@@ -15,7 +15,7 @@ class HomePage:
 
     IMG_WIDTH = 1280
     IMG_HEIGHT = 800
-    IMAGE_NAME = "homepage.png"
+    IMAGE_NAME = "with_border.png"
 
     def __init__(self, controller=None):
         self.controller = controller
