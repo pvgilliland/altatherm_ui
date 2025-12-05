@@ -4,6 +4,7 @@ import customtkinter as ctk
 
 from image_hotspot_view import ImageHotspotView
 from homepage import HomePage
+from select_meal_page import SelectMealPage
 
 
 class MultiPageController:
@@ -26,6 +27,7 @@ class MultiPageController:
 
         # --- Create pages and give them a reference to this controller ---
         self.home_page = HomePage(controller=self)
+        self.select_meal_page = SelectMealPage(controller=self)
 
         # If you later add more pages, create them here, e.g.:
         # from settings_page import SettingsPage
@@ -46,6 +48,9 @@ class MultiPageController:
 
     def show_HomePage(self) -> None:
         self.show_page(self.home_page)
+
+    def show_SelectMealPage(self) -> None:
+        self.show_page(self.select_meal_page)
 
     # Example for future pages:
     # def show_SettingsPage(self) -> None:

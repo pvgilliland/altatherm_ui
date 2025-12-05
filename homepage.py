@@ -13,9 +13,7 @@ class HomePage:
       - defines three hotspots and their callbacks
     """
 
-    IMG_WIDTH = 1280
-    IMG_HEIGHT = 800
-    IMAGE_NAME = "with_border.png"
+    IMAGE_NAME = "HomePage.png"
 
     def __init__(self, controller=None):
         self.controller = controller
@@ -27,9 +25,7 @@ class HomePage:
         self.image_path = os.path.join(assets_dir, self.IMAGE_NAME)
 
         self.hotspots: List[Hotspot] = [
-            Hotspot("start", (150, 550, 450, 650), self.on_start_clicked),
-            Hotspot("settings", (500, 550, 800, 650), self.on_settings_clicked),
-            Hotspot("exit", (850, 550, 1150, 650), self.on_exit_clicked),
+            Hotspot("start", (519, 577, 753, 654), self.on_start_clicked),
         ]
 
     # ------------------------------------------------------------------
@@ -39,18 +35,7 @@ class HomePage:
         print("HomePage: Start clicked")
         if self.controller:
             # e.g. self.controller.show_PreparePage()
-            pass
-
-    def on_settings_clicked(self):
-        print("HomePage: Settings clicked")
-        if self.controller:
-            # e.g. self.controller.show_SettingsPage()
-            pass
-
-    def on_exit_clicked(self):
-        print("HomePage: Exit clicked")
-        # root = self.winfo_toplevel()  # safe, guaranteed root window
-        # root.destroy()
+            self.controller.show_SelectMealPage()
 
 
 # ----------------------------------------------------------------------
