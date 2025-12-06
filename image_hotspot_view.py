@@ -46,6 +46,28 @@ class ImageHotspotView(ctk.CTkFrame):
         self.canvas.pack()
         self.canvas.bind("<Button-1>", self._on_click)
 
+        # --- Overlay image widget (for meal preview etc.) ---
+        self._overlay_ctk_image = None  # keeps reference
+        self.overlay_label = ctk.CTkLabel(
+            self, text="", fg_color="black", width=200, height=200
+        )
+        # Place it where the golden rectangle is (adjust as needed)
+        self.overlay_label.place(x=505, y=225)
+        self.overlay_label.lower()  # keep it above canvas but below hotspots, if any
+
+        self.label = ctk.CTkLabel(
+            self,
+            text="",
+            fg_color="black",
+            bg_color="black",
+            width=300,
+            height=57,
+            font=ctk.CTkFont(family="Poppins", size=32, weight="bold"),
+        )
+        # Place it where the golden rectangle is (adjust as needed)
+        self.label.place(x=490, y=435)
+        self.label.lower()  # keep it above canvas but below hotspots, if any
+
     # ------------------------------------------------------------------
     # Singleton access
     # ------------------------------------------------------------------
@@ -103,3 +125,33 @@ class ImageHotspotView(ctk.CTkFrame):
                 if hs.handler:
                     hs.handler()
                 break
+
+    def set_overlay_image(
+        self, image_path: str | None, name: str | None, size=(300, 300)
+    ):
+        """
+        Shows or hides an overlay image on top of the base page image.
+        image_path = None → hides the overlay.
+        """
+        if not image_path:
+            self.overlay_label.configure(image=None)
+            self._overlay_ctk_image = None
+            self.overlay_label.lower()  # hide the label if there is no image
+            self.label.lower()
+            return
+
+        if not os.path.exists(image_path):
+            print(f"Overlay image not found: {image_path}")
+            return
+
+        from PIL import Image
+
+        pil_img = Image.open(image_path).convert("RGBA")
+        pil_img = pil_img.resize(size)
+
+        self._overlay_ctk_image = ctk.CTkImage(dark_image=pil_img, size=size)
+        self.overlay_label.configure(image=self._overlay_ctk_image)
+        self.overlay_label.lift()  # keep it above canvas but below hotspots, if any
+
+        self.label.configure(text=name)
+        self.label.lift()

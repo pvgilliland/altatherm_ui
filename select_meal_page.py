@@ -17,6 +17,7 @@ class SelectMealPage:
 
     def __init__(self, controller=None):
         self.controller = controller
+        self.meal_index: int = -1
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
         assets_dir = os.path.join(here, "assets")
@@ -55,8 +56,9 @@ class SelectMealPage:
     # ------------------------------------------------------------------
     # Callbacks
     # ------------------------------------------------------------------
-    def on_meal_clicked(self, meal_index):
+    def on_meal_clicked(self, meal_index: int):
         print(f"on_meal_clicked {meal_index}")
+        self.meal_index = meal_index
         if self.controller:
             self.controller.show_PrepareForCookingPage1()
 

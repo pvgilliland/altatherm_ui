@@ -7,6 +7,7 @@ from homepage import HomePage
 from select_meal_page import SelectMealPage
 from prepare_for_cooking1 import PrepareForCookingPage1
 from prepare_for_cooking2 import PrepareForCookingPage2
+from start_cooking_confirmation import StartCookingConfirmation
 
 
 class MultiPageController:
@@ -32,6 +33,7 @@ class MultiPageController:
         self.select_meal_page = SelectMealPage(controller=self)
         self.prepare_for_cooking_page1 = PrepareForCookingPage1(controller=self)
         self.prepare_for_cooking_page2 = PrepareForCookingPage2(controller=self)
+        self.start_cooking_confirm_page = StartCookingConfirmation(controller=self)
 
         # If you later add more pages, create them here, e.g.:
         # from settings_page import SettingsPage
@@ -44,9 +46,28 @@ class MultiPageController:
     # ------------------------------------------------------------------
     def show_page(self, page_obj) -> None:
         """
-        Generic page switch:
-          - page_obj must have image_path + hotspots
+        Generic page switch with lifecycle hooks:
+        - Calls on_hide() on the previous page (if it exists)
+        - Calls on_show() on the new page (if it exists)
+        - Updates the ImageHotspotView
         """
+        # 1. Call on_hide on the current page (if available)
+        if self._current_page and hasattr(self._current_page, "on_hide"):
+            try:
+                self._current_page.on_hide()
+            except Exception as e:
+                print(f"WARNING: on_hide() failed on {self._current_page}: {e}")
+
+        # 2. Call on_show on the new page (if available)
+        if hasattr(page_obj, "on_show"):
+            try:
+                page_obj.on_show()
+            except TypeError:
+                # Some pages (like StartCookingConfirmation) expect parameters
+                # They will call on_show manually before show_page()
+                pass
+
+        # 3. Switch pages visually
         self._current_page = page_obj
         self.view.set_page(page_obj)
 
@@ -61,6 +82,10 @@ class MultiPageController:
 
     def show_PrepareForCookingPage2(self) -> None:
         self.show_page(self.prepare_for_cooking_page2)
+
+    def show_StartCookingConfirmation(self) -> None:
+        self.start_cooking_confirm_page.on_show(self.select_meal_page.meal_index)
+        self.show_page(self.start_cooking_confirm_page)
 
     # Example for future pages:
     # def show_SettingsPage(self) -> None:

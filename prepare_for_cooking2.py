@@ -49,4 +49,4 @@ class PrepareForCookingPage2:
     def on_forward_clicked(self):
         print("on_forward_clicked")
         if self.controller:
-            pass
+            self.controller.show_StartCookingConfirmation()
