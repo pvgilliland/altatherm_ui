@@ -13,7 +13,7 @@ class SelectMealPage:
       - defines three hotspots and their callbacks
     """
 
-    IMAGE_NAME = "SelectMealPage.png"
+    IMAGE_NAME = "01SelectMealPage.png"
 
     def __init__(self, controller=None):
         self.controller = controller
@@ -58,14 +58,12 @@ class SelectMealPage:
     def on_meal_clicked(self, meal_index):
         print(f"on_meal_clicked {meal_index}")
         if self.controller:
-            # self.controller.show_HomePage()
-            pass
+            self.controller.show_PrepareForCookingPage1()
 
     def on_back_clicked(self):
         print("on_back_clicked")
         if self.controller:
             self.controller.show_HomePage()
-            pass
 
     def on_exit_clicked(self):
         print("HomePage: Exit clicked")

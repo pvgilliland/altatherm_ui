@@ -13,7 +13,7 @@ class HomePage:
       - defines three hotspots and their callbacks
     """
 
-    IMAGE_NAME = "HomePage.png"
+    IMAGE_NAME = "00HomePage.png"
 
     def __init__(self, controller=None):
         self.controller = controller

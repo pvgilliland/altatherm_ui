@@ -5,6 +5,8 @@ import customtkinter as ctk
 from image_hotspot_view import ImageHotspotView
 from homepage import HomePage
 from select_meal_page import SelectMealPage
+from prepare_for_cooking1 import PrepareForCookingPage1
+from prepare_for_cooking2 import PrepareForCookingPage2
 
 
 class MultiPageController:
@@ -28,6 +30,8 @@ class MultiPageController:
         # --- Create pages and give them a reference to this controller ---
         self.home_page = HomePage(controller=self)
         self.select_meal_page = SelectMealPage(controller=self)
+        self.prepare_for_cooking_page1 = PrepareForCookingPage1(controller=self)
+        self.prepare_for_cooking_page2 = PrepareForCookingPage2(controller=self)
 
         # If you later add more pages, create them here, e.g.:
         # from settings_page import SettingsPage
@@ -52,6 +56,12 @@ class MultiPageController:
     def show_SelectMealPage(self) -> None:
         self.show_page(self.select_meal_page)
 
+    def show_PrepareForCookingPage1(self) -> None:
+        self.show_page(self.prepare_for_cooking_page1)
+
+    def show_PrepareForCookingPage2(self) -> None:
+        self.show_page(self.prepare_for_cooking_page2)
+
     # Example for future pages:
     # def show_SettingsPage(self) -> None:
     #     self.show_page(self.settings_page)
@@ -73,6 +83,8 @@ if __name__ == "__main__":
 
     root = ctk.CTk()
     root.geometry("1280x800")
+
+    # root.overrideredirect(True) # remove the titlebar
 
     controller = MultiPageController(root)
     controller.show_HomePage()
