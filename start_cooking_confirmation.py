@@ -5,6 +5,7 @@ import customtkinter as ctk
 from PIL import Image, ImageDraw
 from hotspots import Hotspot
 from hmi_consts import ASSETS_DIR
+from typing import Optional
 
 
 class StartCookingConfirmation:
@@ -16,7 +17,7 @@ class StartCookingConfirmation:
 
     IMAGE_NAME = "04ConfirmationPage.png"
 
-    def __init__(self, controller=None):
+    def __init__(self, controller):
         self.controller = controller
         self.meal_index: int = -1  # ← store for incoming parameter
 

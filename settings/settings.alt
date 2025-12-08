@@ -1,0 +1,15 @@
+{
+  "alarm_level": 999,
+  "alarm_hysteresis": 200,
+  "over_temp_power": 0.75,
+  "fan_delay": {
+    "minute": 0,
+    "second": 5
+  },
+  "manual_cook": {
+    "minute": 0,
+    "second": 10,
+    "power": 50
+  },
+  "use_sound": false
+}
