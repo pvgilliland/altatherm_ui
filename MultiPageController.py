@@ -5,7 +5,7 @@ import threading
 from typing import Optional
 
 # --- NEW: shared serial service ---
-# from DoorSafety import DoorSafety
+from DoorSafety import DoorSafety
 from SerialService import SerialService
 
 

@@ -1,11 +1,16 @@
 # testpage.py
+import json
 import os
 from typing import List
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 from hotspots import Hotspot
-from hmi_consts import ASSETS_DIR
+from hmi_consts import ASSETS_DIR, PROGRAMS_DIR
 from typing import Optional
+from SelectProgramPage import (
+    load_program_into_sequence_collection,
+    save_program_from_sequence_collection,
+)
 
 
 class StartCookingConfirmation:
@@ -75,12 +80,23 @@ class StartCookingConfirmation:
             self.controller.view.set_overlay_image(None)
             return
 
-        path = os.path.join(ASSETS_DIR, filename)
+        image_path = os.path.join(ASSETS_DIR, filename)
 
-        print(path)
+        print(image_path)
+
+        program_number: int = meal_index + 31
+
+        load_program_into_sequence_collection(program_number)
+
+        path = str(PROGRAMS_DIR / f"program{program_number}.alt")
+        with open(path, "r") as f:
+            data = json.load(f)
+        total_time = data.get("total_time")
 
         # Show it in the confirmation page
-        self.controller.view.set_overlay_image(path, name, size=(270, 200))
+        self.controller.view.set_overlay_image(
+            image_path, name, total_time, size=(270, 200)
+        )
 
     def on_hide(self):
-        self.controller.view.set_overlay_image(None, None)
+        self.controller.view.set_overlay_image(None, None, None)

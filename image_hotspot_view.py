@@ -68,6 +68,19 @@ class ImageHotspotView(ctk.CTkFrame):
         self.label.place(x=490, y=435)
         self.label.lower()  # keep it above canvas but below hotspots, if any
 
+        self.cook_time_label = ctk.CTkLabel(
+            self,
+            text="00:00",
+            fg_color="black",
+            bg_color="black",
+            width=75,
+            height=28,
+            font=ctk.CTkFont(family="Poppins", size=28, weight="normal"),
+        )
+        # Place it where the golden rectangle is (adjust as needed)
+        self.cook_time_label.place(x=674, y=559)
+        self.cook_time_label.lower()  # keep it above canvas but below hotspots, if any
+
     # ------------------------------------------------------------------
     # Singleton access
     # ------------------------------------------------------------------
@@ -127,7 +140,11 @@ class ImageHotspotView(ctk.CTkFrame):
                 break
 
     def set_overlay_image(
-        self, image_path: str | None, name: str | None, size=(300, 300)
+        self,
+        image_path: str | None,
+        name: str | None,
+        cook_time: str | None,
+        size=(300, 300),
     ):
         """
         Shows or hides an overlay image on top of the base page image.
@@ -137,6 +154,7 @@ class ImageHotspotView(ctk.CTkFrame):
             self.overlay_label.configure(image=None)
             self._overlay_ctk_image = None
             self.overlay_label.lower()  # hide the label if there is no image
+            self.cook_time_label.lower()  # hide the cook time label
             self.label.lower()
             return
 
@@ -155,3 +173,6 @@ class ImageHotspotView(ctk.CTkFrame):
 
         self.label.configure(text=name)
         self.label.lift()
+
+        self.cook_time_label.configure(text=cook_time)
+        self.cook_time_label.lift()
