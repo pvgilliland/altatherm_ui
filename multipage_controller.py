@@ -158,6 +158,8 @@ class MultiPageController:
         self.show_page(self.start_cooking_confirm_page)
 
     def show_CookingPage(self) -> None:
+        # Pass the currently selected meal index into CookingPage
+        self.cooking_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_page)
 
     # ------------------------------------------------------------------

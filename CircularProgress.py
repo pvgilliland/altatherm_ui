@@ -17,7 +17,7 @@ class CircularProgress(ctk.CTkCanvas):
             master,
             width=size,
             height=size,
-            bg=self._resolve_bg(master),
+            bg=bg_color,
             highlightthickness=0,
             **kwargs,
         )

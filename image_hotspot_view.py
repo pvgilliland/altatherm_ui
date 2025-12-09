@@ -7,6 +7,7 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 
 from hotspots import Hotspot  # for type hints
+from CircularProgress import CircularProgress  # NEW
 
 
 class ImageHotspotView(ctk.CTkFrame):
@@ -81,6 +82,9 @@ class ImageHotspotView(ctk.CTkFrame):
         self.cook_time_label.place(x=674, y=559)
         self.cook_time_label.lower()  # keep it above canvas but below hotspots, if any
 
+        # --- CircularProgress overlay (used by CookingPage) ---
+        self.circular_progress: Optional[CircularProgress] = None
+
     # ------------------------------------------------------------------
     # Singleton access
     # ------------------------------------------------------------------
@@ -139,6 +143,9 @@ class ImageHotspotView(ctk.CTkFrame):
                     hs.handler()
                 break
 
+    # ------------------------------------------------------------------
+    # Overlay helpers
+    # ------------------------------------------------------------------
     def set_overlay_image(
         self,
         image_path: str | None,
@@ -176,3 +183,29 @@ class ImageHotspotView(ctk.CTkFrame):
 
         self.cook_time_label.configure(text=cook_time)
         self.cook_time_label.lift()
+
+    # ------------------------------------------------------------------
+    # CircularProgress overlay API
+    # ------------------------------------------------------------------
+    def show_circular_progress(self):
+        """
+        Ensure the CircularProgress widget exists and make it visible,
+        centered in the main content area (tuned for 1280x800).
+        """
+        if self.circular_progress is None:
+            self.circular_progress = CircularProgress(
+                self,
+                size=520,
+                thickness=32,
+                fg_color="#C7A64B",  # AltaTherm gold
+                bg_color="#777777",
+                text_color="#FFFFFF",
+            )
+            # Centered slightly above the vertical middle to leave room for bottom buttons
+            self.circular_progress.place(relx=0.5, rely=0.47, anchor="center")
+        # self.circular_progress.lift()  # type: ignore[arg-type]
+
+    def hide_circular_progress(self):
+        """Hide (but do not destroy) the CircularProgress widget."""
+        if self.circular_progress is not None:
+            self.circular_progress.place_forget()
