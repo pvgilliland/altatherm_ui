@@ -1,4 +1,4 @@
-# testpage.py
+# cooking_page.py
 import json
 import os
 from typing import List
@@ -13,27 +13,12 @@ from SelectProgramPage import (
 )
 
 
-class StartCookingConfirmation:
-    """
-    Page model:
-      - uses homepage.png
-      - defines three hotspots and their callbacks
-    """
+class CookingPage:
 
-    IMAGE_NAME = "04ConfirmationPage.png"
+    IMAGE_NAME = "05CookingPage.png"
 
     def __init__(self, controller):
         self.controller = controller
-        self.meal_index: int = -1  # ← store for incoming parameter
-
-        self.meal_images = {
-            0: ("ShrimpCurry.png", "Shrimp Curry"),
-            1: ("ChickenParmesan.png", "Chicken Parmesan"),
-            2: ("BeefStirFry.png", "Beef Stir Fry"),
-            3: ("salmon.png", "Salmon"),
-            4: ("SteakAndBroccoli.png", "Steak abd Broccoli"),
-            5: ("Reheat.png", "Reheat"),
-        }
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
         assets_dir = os.path.join(here, "assets")
@@ -66,7 +51,7 @@ class StartCookingConfirmation:
     def on_start_clicked(self):
         print("on_start_clicked")
         if self.controller:
-            self.controller.show_CookingPage()
+            pass
 
     # ------------------------------------------------------------------
     # Methods

@@ -13,6 +13,7 @@ from select_meal_page import SelectMealPage
 from prepare_for_cooking1 import PrepareForCookingPage1
 from prepare_for_cooking2 import PrepareForCookingPage2
 from start_cooking_confirmation import StartCookingConfirmation
+from cooking_page import CookingPage
 from SerialService import SerialService
 from DoorSafety import DoorSafety
 from hmi_consts import ASSETS_DIR, SETTINGS_DIR, PROGRAMS_DIR, HMISizePos, __version__
@@ -87,6 +88,7 @@ class MultiPageController:
         self.prepare_for_cooking_page1 = PrepareForCookingPage1(controller=self)
         self.prepare_for_cooking_page2 = PrepareForCookingPage2(controller=self)
         self.start_cooking_confirm_page = StartCookingConfirmation(controller=self)
+        self.cooking_page = CookingPage(controller=self)
 
         self._current_page = None
 
@@ -154,6 +156,9 @@ class MultiPageController:
     def show_StartCookingConfirmation(self) -> None:
         self.start_cooking_confirm_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.start_cooking_confirm_page)
+
+    def show_CookingPage(self) -> None:
+        self.show_page(self.cooking_page)
 
     # ------------------------------------------------------------------
     # Serial commands
