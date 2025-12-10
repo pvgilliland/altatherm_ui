@@ -21,6 +21,8 @@ ASSETS_DIR = ROOT_DIR / "assets"
 SETTINGS_DIR = ROOT_DIR / "settings"
 PROGRAMS_DIR = ROOT_DIR / "programs"
 
+SETTINGS_FILE = SETTINGS_DIR / "settings.alt"
+
 
 class HMIColors:
     BORDER_COLOR = "#E0E0F2"

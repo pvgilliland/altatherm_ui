@@ -9,10 +9,6 @@ from PIL import Image, ImageDraw
 
 from hotspots import Hotspot
 from hmi_consts import ASSETS_DIR, PROGRAMS_DIR
-from SelectProgramPage import (
-    load_program_into_sequence_collection,
-    save_program_from_sequence_collection,
-)
 
 
 class CookingPage:
@@ -34,7 +30,7 @@ class CookingPage:
                 self.on_back_clicked,
             ),
             Hotspot(
-                "start",  # visually "Stop" button while cooking
+                "start",  # acts as Start when idle, Stop when running
                 (490, 641, 785, 716),
                 self.on_start_clicked,
             ),
@@ -52,29 +48,67 @@ class CookingPage:
     # Callbacks
     # ------------------------------------------------------------------
     def on_back_clicked(self):
-        print("on_back_clicked")
-        # Treat "Back" as a stop for the progress ring as well
+        print("[CookingPage] Back clicked")
+        # Treat "Back" as a stop for the progress ring and cook cycle
         self._stop_progress()
+        try:
+            self.controller.stop_current_cook()
+        except Exception as e:
+            print(f"[CookingPage] stop_current_cook in on_back_clicked failed: {e}")
         if self.controller:
             self.controller.show_PrepareForCookingPage2()
 
     def on_start_clicked(self):
         """
-        This hotspot corresponds to the bottom-center pill button which
-        visually says "Stop". For now we just stop the cooking countdown
-        and return to the previous page; you can extend this to mirror
-        the SessionEndedPage flow from CircularProgressPage if desired.
+        Start/Stop behavior (best design):
+
+        - If NOT currently running:
+            * Ask controller to start_meal_program(meal_index)
+            * Controller builds & starts CookingSequenceManager, sets oven_state, etc.
+            * This page starts the circular countdown with the returned total time.
+
+        - If already running:
+            * Stop countdown
+            * Ask controller to stop_current_cook() (stops sequences + power + oven_state)
+            * Return to PrepareForCookingPage2
         """
-        print("on_start_clicked (Stop)")
+        print("[CookingPage] Start clicked")
+
+        # --- START case ---
+        if not self._running:
+            if self.meal_index is None:
+                print("[CookingPage] No meal_index; cannot start")
+                return
+
+            try:
+                total = float(self.controller.start_meal_program(self.meal_index))
+            except Exception as e:
+                print(f"[CookingPage] controller.start_meal_program failed: {e}")
+                return
+
+            if total <= 0:
+                print(
+                    "[CookingPage] start_meal_program returned non-positive total; aborting"
+                )
+                return
+
+            print(f"[CookingPage] Starting circular countdown for {total:.1f}s")
+            self._start_progress(total)
+            return
+
+        # --- STOP case (already running) ---
+        print("[CookingPage] Stop requested")
         self._stop_progress()
+        try:
+            self.controller.stop_current_cook()
+        except Exception as e:
+            print(f"[CookingPage] stop_current_cook in on_start_clicked failed: {e}")
+
         if self.controller:
-            # Simple behavior: go back to the prepare page.
-            # If you want the full SessionEndedPage flow, you can call:
-            #   self.controller.show_SessionEndedPage(...)
             self.controller.show_PrepareForCookingPage2()
 
     # ------------------------------------------------------------------
-    # Methods
+    # CircularProgress overlay plumbing
     # ------------------------------------------------------------------
     def _ensure_progress_widget(self):
         """
@@ -84,7 +118,7 @@ class CookingPage:
         if view is None:
             return None
 
-        # ImageHotspotView now exposes show_circular_progress()
+        # ImageHotspotView exposes show_circular_progress()
         if hasattr(view, "show_circular_progress"):
             view.show_circular_progress()
             return getattr(view, "circular_progress", None)
@@ -123,7 +157,6 @@ class CookingPage:
         view = getattr(self.controller, "view", None)
         cp = getattr(view, "circular_progress", None) if view else None
 
-        # Same style of countdown as CircularProgressPage._tick
         elapsed = time.time() - (self._start_epoch or time.time())
         self._remaining_time = max(0.0, self._total_time - elapsed)
 
@@ -137,11 +170,9 @@ class CookingPage:
             self._running = False
             if cp is not None:
                 cp.update_progress(0.0, self._total_time)
-            # At this point you could navigate to FoodReadyPage if desired,
-            # similar to CircularProgressPage:
-            #   self.controller.show_FoodReadyPage(...)
-            # For now we just leave the CookingPage showing "0:00".
+
             print("[CookingPage] Cook timer complete")
+            # Optional: could navigate to a "Food Ready" page here
 
     def _start_progress(self, total_seconds: float):
         """
@@ -187,43 +218,58 @@ class CookingPage:
     # Page lifecycle
     # ------------------------------------------------------------------
     def on_show(self, meal_index: int):
+        """
+        Called when CookingPage is displayed.
+
+        - Records the meal_index
+        - Reads program{31+meal_index}.alt's total_time ("MM:SS") for initial ring display
+        - Prepares the CircularProgress ring to show the full time, but does NOT start.
+        """
         self.meal_index = meal_index
-        # Look up the meal's image
-
-        """
-        filename, name = self.meal_images[meal_index]
-
-        if not filename:
-            self.controller.view.set_overlay_image(None, None, None)
-            self._stop_progress()
-            return
-
-        image_path = os.path.join(ASSETS_DIR, filename)
-        print(image_path)
-        """
 
         program_number: int = meal_index + 31
-
-        # load_program_into_sequence_collection(program_number)
-
         path = str(PROGRAMS_DIR / f"program{program_number}.alt")
-        with open(path, "r") as f:
-            data = json.load(f)
-        total_time = data.get("total_time")
-        total_timef: float = CookingPage.mmss_to_seconds(total_time)
 
-        # Show it in the confirmation page
-        # self.controller.view.set_overlay_image(
-        #    image_path, name, total_time, size=(270, 200)
-        # )
+        total_timef: float = 0.0
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            total_time_str = data.get("total_time") or "0:00"
+            total_timef = CookingPage.mmss_to_seconds(total_time_str)
+        except Exception as e:
+            print(f"[CookingPage] Failed to read {path}: {e}")
+            total_timef = 0.0
 
-        # Also start the circular countdown using the same total_time
-        self._start_progress(total_timef)
+        # Store (but do NOT auto-start; Start button will kick everything off)
+        self._total_time = total_timef
+        self._remaining_time = total_timef
+        self._start_epoch = None
+        self._running = False
+
+        # Prepare the circular ring to show the full time initially
+        cp = self._ensure_progress_widget()
+        if cp is not None:
+            if self._total_time > 0:
+                cp.update_progress(self._total_time, self._total_time)
+            else:
+                cp.update_progress(0.0, 1.0)
+
+        # If you want overlay image/name/time, you can call:
+        #   self.controller.view.set_overlay_image(image_path, name, cook_time, size)
+        # here using SelectMealPage data.
 
     def on_hide(self):
         # Clear overlay and stop countdown
-        self.controller.view.set_overlay_image(None, None, None)
+        try:
+            self.controller.view.set_overlay_image(None, None, None)
+        except Exception:
+            pass
         self._stop_progress()
+        # Safety: stop sequences/power if we navigate away unexpectedly
+        try:
+            self.controller.stop_current_cook()
+        except Exception as e:
+            print(f"[CookingPage] stop_current_cook in on_hide failed: {e}")
 
     @staticmethod
     def mmss_to_seconds(mmss: str) -> float:
