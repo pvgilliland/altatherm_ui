@@ -1,4 +1,3 @@
-# cooking_page.py
 import json
 import os
 import time
@@ -30,7 +29,7 @@ class CookingPage:
                 self.on_back_clicked,
             ),
             Hotspot(
-                "start",  # acts as Start when idle, Stop when running
+                "start",  # acts as Start initially, then Pause/Resume during cook
                 (490, 641, 785, 716),
                 self.on_start_clicked,
             ),
@@ -41,7 +40,8 @@ class CookingPage:
         self._total_time: float = 0.0
         self._remaining_time: float = 0.0
         self._start_epoch: Optional[float] = None
-        self._running: bool = False
+        self._running: bool = False  # actively counting down
+        self._paused: bool = False  # paused but not finished/cancelled
         self._tick_after_id: Optional[str] = None
 
     # ------------------------------------------------------------------
@@ -49,7 +49,7 @@ class CookingPage:
     # ------------------------------------------------------------------
     def on_back_clicked(self):
         print("[CookingPage] Back clicked")
-        # Treat "Back" as a stop for the progress ring and cook cycle
+        # Treat "Back" as a full stop for the progress ring and cook cycle
         self._stop_progress()
         try:
             self.controller.stop_current_cook()
@@ -60,22 +60,27 @@ class CookingPage:
 
     def on_start_clicked(self):
         """
-        Start/Stop behavior (best design):
+        Start / Pause / Resume behavior:
 
-        - If NOT currently running:
-            * Ask controller to start_meal_program(meal_index)
-            * Controller builds & starts CookingSequenceManager, sets oven_state, etc.
-            * This page starts the circular countdown with the returned total time.
+        - If NOT running and NOT paused:
+            * Start the cook:
+              - controller.start_meal_program(meal_index)
+              - start circular countdown with returned total time.
 
-        - If already running:
-            * Stop countdown
-            * Ask controller to stop_current_cook() (stops sequences + power + oven_state)
-            * Return to PrepareForCookingPage2
+        - If currently running:
+            * Pause the cook:
+              - pause timer
+              - optionally controller.pause_current_cook()
+
+        - If paused (not running, but _paused True):
+            * Resume the cook:
+              - resume timer based on remaining time
+              - optionally controller.resume_current_cook()
         """
-        print("[CookingPage] Start clicked")
+        print("[CookingPage] Start/Pause/Resume clicked")
 
-        # --- START case ---
-        if not self._running:
+        # --- START case (first time, or after finished and user presses again) ---
+        if not self._running and not self._paused:
             if self.meal_index is None:
                 print("[CookingPage] No meal_index; cannot start")
                 return
@@ -93,19 +98,36 @@ class CookingPage:
                 return
 
             print(f"[CookingPage] Starting circular countdown for {total:.1f}s")
+            self._paused = False
             self._start_progress(total)
             return
 
-        # --- STOP case (already running) ---
-        print("[CookingPage] Stop requested")
-        self._stop_progress()
-        try:
-            self.controller.stop_current_cook()
-        except Exception as e:
-            print(f"[CookingPage] stop_current_cook in on_start_clicked failed: {e}")
+        # --- PAUSE case (currently running) ---
+        if self._running:
+            print("[CookingPage] Pause requested")
+            self._pause_progress()
+            # Optional: pause sequences / power at controller level
+            if self.controller and hasattr(self.controller, "pause_current_cook"):
+                try:
+                    self.controller.pause_current_cook()
+                except Exception as e:
+                    print(f"[CookingPage] pause_current_cook failed: {e}")
+            return
 
-        if self.controller:
-            self.controller.show_PrepareForCookingPage2()
+        # --- RESUME case (paused but not running) ---
+        if self._paused and not self._running:
+            print("[CookingPage] Resume requested")
+            self._resume_progress()
+            # Optional: resume sequences / power at controller level
+            if self.controller and hasattr(self.controller, "resume_current_cook"):
+                try:
+                    self.controller.resume_current_cook()
+                except Exception as e:
+                    print(f"[CookingPage] resume_current_cook failed: {e}")
+            return
+
+        # Fallback
+        print("[CookingPage] on_start_clicked in unexpected state")
 
     # ------------------------------------------------------------------
     # CircularProgress overlay plumbing
@@ -168,6 +190,7 @@ class CookingPage:
         else:
             # Finished
             self._running = False
+            self._paused = False
             if cp is not None:
                 cp.update_progress(0.0, self._total_time)
 
@@ -189,6 +212,7 @@ class CookingPage:
             if cp is not None:
                 cp.update_progress(0.0, 1.0)
             self._running = False
+            self._paused = False
             return
 
         cp = self._ensure_progress_widget()
@@ -201,16 +225,56 @@ class CookingPage:
         self._remaining_time = self._total_time
         self._start_epoch = time.time()
         self._running = True
+        self._paused = False
 
         # Initialize ring at full time
         cp.update_progress(self._remaining_time, self._total_time)
         self._schedule_tick()
 
+    def _pause_progress(self):
+        """
+        Pause the countdown but keep the circular control visible.
+        """
+        if not self._running:
+            return
+
+        # Ensure we capture the latest remaining time before stopping
+        self._tick()  # one last sync; harmless if slightly redundant
+
+        self._cancel_tick()
+        self._running = False
+        self._paused = True
+
+        # Leave the ring showing the current remaining time
+
+    def _resume_progress(self):
+        """
+        Resume the countdown from the current remaining time.
+        """
+        if self._running or not self._paused:
+            return
+
+        if self._remaining_time <= 0.0 or self._total_time <= 0.0:
+            # Nothing meaningful to resume
+            return
+
+        now = time.time()
+        # Reconstruct the effective start_epoch so that:
+        #   remaining = total - (now - _start_epoch)
+        #   => _start_epoch = now - (total - remaining)
+        self._start_epoch = now - (self._total_time - self._remaining_time)
+
+        self._running = True
+        self._paused = False
+        self._schedule_tick()
+
     def _stop_progress(self):
         """
-        Stop the countdown and hide the circular control.
+        Fully stop the countdown and hide the circular control.
+        Used for Back / page hide / hard stops.
         """
         self._running = False
+        self._paused = False
         self._cancel_tick()
         self._hide_progress_widget()
 
@@ -222,8 +286,9 @@ class CookingPage:
         Called when CookingPage is displayed.
 
         - Records the meal_index
-        - Reads program{31+meal_index}.alt's total_time ("MM:SS") for initial ring display
-        - Prepares the CircularProgress ring to show the full time, but does NOT start.
+        - Reads program{31+meal_index}.alt's total_time ("MM:SS")
+        - Prepares the CircularProgress ring to show the full time
+        - Auto-starts cooking (start_meal_program + countdown) after the UI is idle
         """
         self.meal_index = meal_index
 
@@ -240,11 +305,12 @@ class CookingPage:
             print(f"[CookingPage] Failed to read {path}: {e}")
             total_timef = 0.0
 
-        # Store (but do NOT auto-start; Start button will kick everything off)
+        # Store base time; on_start_clicked will use controller.start_meal_program()
         self._total_time = total_timef
         self._remaining_time = total_timef
         self._start_epoch = None
         self._running = False
+        self._paused = False
 
         # Prepare the circular ring to show the full time initially
         cp = self._ensure_progress_widget()
@@ -254,9 +320,12 @@ class CookingPage:
             else:
                 cp.update_progress(0.0, 1.0)
 
-        # If you want overlay image/name/time, you can call:
-        #   self.controller.view.set_overlay_image(image_path, name, cook_time, size)
-        # here using SelectMealPage data.
+        # -------------------------------------------------------
+        # START COOKING AS SOON AS PAGE APPEARS
+        # -------------------------------------------------------
+        # Use after_idle so UI loads before cook begins
+        if self.controller and hasattr(self.controller, "view"):
+            self.controller.view.after_idle(lambda: self.on_start_clicked())
 
     def on_hide(self):
         # Clear overlay and stop countdown

@@ -202,7 +202,7 @@ class ImageHotspotView(ctk.CTkFrame):
                 text_color="#FFFFFF",
             )
             # Centered slightly above the vertical middle to leave room for bottom buttons
-            self.circular_progress.place(relx=0.5, rely=0.50, anchor="center")
+            self.circular_progress.place(relx=0.5, rely=0.51, anchor="center")
         # self.circular_progress.lift()  # type: ignore[arg-type]
 
     def hide_circular_progress(self):
