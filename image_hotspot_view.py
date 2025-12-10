@@ -1,13 +1,14 @@
 # image_hotspot_view.py
 import os
 import tkinter as tk
-from typing import Optional
+from typing import Optional, Callable
 
 import customtkinter as ctk
 from PIL import Image, ImageTk
 
 from hotspots import Hotspot  # for type hints
-from CircularProgress import CircularProgress  # NEW
+from CircularProgress import CircularProgress
+from time_adjust_control import TimeAdjustControl
 
 
 class ImageHotspotView(ctk.CTkFrame):
@@ -84,6 +85,9 @@ class ImageHotspotView(ctk.CTkFrame):
 
         # --- CircularProgress overlay (used by CookingPage) ---
         self.circular_progress: Optional[CircularProgress] = None
+
+        # --- Horizontal Reheat Time control (overlay) ---
+        self.reheat_time_control: Optional[TimeAdjustControl] = None
 
     # ------------------------------------------------------------------
     # Singleton access
@@ -246,3 +250,53 @@ class ImageHotspotView(ctk.CTkFrame):
     def hide_center_overlay(self):
         if hasattr(self, "center_overlay_label"):
             self.center_overlay_label.place_forget()
+
+    # ------------------------------------------------------------------
+    # Reheat time control overlay API
+    # ------------------------------------------------------------------
+    def show_reheat_time_control(
+        self,
+        initial_seconds: int = 30,
+        min_seconds: int = 0,
+        max_seconds: int = 120,
+        on_change: Optional[Callable[[int], None]] = None,
+    ) -> None:
+        """
+        Show the horizontal +/- 15 sec time control near the bottom center.
+        """
+        if self.reheat_time_control is None:
+            self.reheat_time_control = TimeAdjustControl(
+                self,
+                label_text="Reheat Time:",
+                step_seconds=15,
+                min_seconds=min_seconds,
+                max_seconds=max_seconds,
+                initial_seconds=initial_seconds,
+                on_change=on_change,
+            )
+        else:
+            # Update range & callback and current value
+            self.reheat_time_control.configure_range(
+                min_seconds=min_seconds, max_seconds=max_seconds, step_seconds=15
+            )
+            self.reheat_time_control._on_change = on_change  # type: ignore[attr-defined]
+            self.reheat_time_control.set_seconds(initial_seconds)
+
+        # Place roughly where your mockup shows the control
+        self.reheat_time_control.place(relx=0.5, rely=0.72, anchor="center")
+        self.reheat_time_control.lift()
+
+    def hide_reheat_time_control(self) -> None:
+        """
+        Hide (but do not destroy) the reheat time control.
+        """
+        if self.reheat_time_control is not None:
+            self.reheat_time_control.place_forget()
+
+    def get_reheat_seconds(self) -> int:
+        """
+        Convenience accessor for current reheat seconds.
+        """
+        if self.reheat_time_control is None:
+            return 0
+        return self.reheat_time_control.get_seconds()

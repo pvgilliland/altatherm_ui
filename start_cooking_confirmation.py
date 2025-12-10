@@ -98,5 +98,24 @@ class StartCookingConfirmation:
             image_path, name, total_time, size=(270, 200)
         )
 
+        # -------------------------------
+        # If meal_index == 5 (Reheat), show 15-sec adjuster
+        # -------------------------------
+        if meal_index == 5:
+            print("Showing TimeAdjustControl for Reheat")
+
+            # Default to 30 sec, clamp min/max as needed
+            self.controller.view.show_reheat_time_control(
+                initial_seconds=0,
+                min_seconds=0,
+                max_seconds=120,  # up to 5 minutes if you want
+                on_change=lambda secs: print("Reheat time changed:", secs),
+            )
+
+        else:
+            # Hide it for all non-Reheat meals
+            self.controller.view.hide_reheat_time_control()
+
     def on_hide(self):
         self.controller.view.set_overlay_image(None, None, None)
+        self.controller.view.hide_reheat_time_control()
