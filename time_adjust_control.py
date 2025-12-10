@@ -23,7 +23,7 @@ class TimeAdjustControl(ctk.CTkFrame):
         on_change: Optional[Callable[[int], None]] = None,
         **kwargs,
     ):
-        super().__init__(master, fg_color="transparent", **kwargs)
+        super().__init__(master, fg_color="black", **kwargs)
 
         self._step = step_seconds
         self._min = min_seconds
@@ -38,7 +38,7 @@ class TimeAdjustControl(ctk.CTkFrame):
         self.columnconfigure(3, weight=0)
 
         # Colors that match your bronze/gold theme
-        gold = "#B08D57"
+        gold = "#7A5018"
         text_white = "#FFFFFF"
 
         label_font = ctk.CTkFont(family="Poppins", size=28, weight="normal")
@@ -62,9 +62,10 @@ class TimeAdjustControl(ctk.CTkFrame):
             fg_color="black",  # same as background to make a ring
             border_width=3,
             border_color=gold,
-            hover_color="#1f1f1f",
-            text_color=gold,
-            font=btn_font,
+            hover_color="black",
+            text_color=text_white,
+            font=ctk.CTkFont(family="Poppins", size=44, weight="bold"),
+            anchor="n",
             command=lambda: self._adjust(-self._step),
         )
         self.minus_btn.grid(row=0, column=1, padx=(0, 16), pady=10)
@@ -73,6 +74,7 @@ class TimeAdjustControl(ctk.CTkFrame):
             self,
             text=self._format_value(),
             text_color=text_white,
+            width=100,
             font=value_font,
         )
         self.value_label.grid(row=0, column=2, padx=(0, 16), pady=10)
@@ -86,8 +88,8 @@ class TimeAdjustControl(ctk.CTkFrame):
             fg_color="black",
             border_width=3,
             border_color=gold,
-            hover_color="#1f1f1f",
-            text_color=gold,
+            hover_color="black",
+            text_color=text_white,
             font=btn_font,
             command=lambda: self._adjust(+self._step),
         )
