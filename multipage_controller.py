@@ -45,6 +45,7 @@ class MultiPageController:
 
     def __init__(self, root: ctk.CTk):
         self.root = root
+        self._suppress_finished_page = False  # flag for hard-cancel
 
         # Create the singleton hotspot view inside the root
         self.view = ImageHotspotView.get_instance(root)
@@ -329,6 +330,12 @@ class MultiPageController:
             oven_state.set_running(False)
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(False) failed: {e}")
+
+        # If this was a HARD STOP, don't navigate to CookingFinishedPage
+        if getattr(self, "_suppress_finished_page", False):
+            print("[MultiPageController] Hard stop: suppressing CookingFinishedPage")
+            self._suppress_finished_page = False  # reset for next run
+            return
 
         # When cooking is truly finished, show the CookingFinishedPage
         try:

@@ -38,6 +38,9 @@ class CookingPausedPage:
 
         print("[CookingPausedPage] Stop (hard cancel) clicked")
 
+        # Tell controller this is a HARD STOP, not a natural finish
+        self.controller._suppress_finished_page = True
+
         # 1) Stop the current cook completely (sequences + zones + oven_state)
         try:
             self.controller.stop_current_cook()
