@@ -14,6 +14,8 @@ from prepare_for_cooking1 import PrepareForCookingPage1
 from prepare_for_cooking2 import PrepareForCookingPage2
 from start_cooking_confirmation import StartCookingConfirmation
 from cooking_page import CookingPage
+from cooking_finished_page import CookingFinishedPage
+from cooking_paused_page import CookingPausedPage
 from SerialService import SerialService
 from DoorSafety import DoorSafety
 from hmi_consts import ASSETS_DIR, SETTINGS_DIR, PROGRAMS_DIR, HMISizePos, __version__
@@ -101,6 +103,8 @@ class MultiPageController:
         self.prepare_for_cooking_page2 = PrepareForCookingPage2(controller=self)
         self.start_cooking_confirm_page = StartCookingConfirmation(controller=self)
         self.cooking_page = CookingPage(controller=self)
+        self.cooking_finished_page = CookingFinishedPage(controller=self)
+        self.cooking_paused_page = CookingPausedPage(controller=self)
 
         self._current_page = None
 
@@ -176,6 +180,12 @@ class MultiPageController:
         # Pass the currently selected meal index into CookingPage
         self.cooking_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_page)
+
+    def show_CookingFinishedPage(self) -> None:
+        self.show_page(self.cooking_finished_page)
+
+    def show_CookingPausedPage(self) -> None:
+        self.show_page(self.cooking_paused_page)
 
     # ------------------------------------------------------------------
     # Serial commands + fan off logic
@@ -319,6 +329,15 @@ class MultiPageController:
             oven_state.set_running(False)
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(False) failed: {e}")
+
+        # When cooking is truly finished, show the CookingFinishedPage
+        try:
+            # Must switch pages on the Tk UI thread
+            self.after(0, self.show_CookingFinishedPage)
+        except Exception as e:
+            print(
+                f"[MultiPageController] show_CookingFinishedPage in _on_all_zones_complete failed: {e}"
+            )
 
     def start_meal_program(self, meal_index: int) -> float:
         """

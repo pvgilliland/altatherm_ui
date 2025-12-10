@@ -201,11 +201,48 @@ class ImageHotspotView(ctk.CTkFrame):
                 bg_color="#000000",
                 text_color="#FFFFFF",
             )
-            # Centered slightly above the vertical middle to leave room for bottom buttons
-            self.circular_progress.place(relx=0.5, rely=0.51, anchor="center")
+        # Centered slightly above the vertical middle to leave room for bottom buttons
+        self.circular_progress.place(relx=0.5, rely=0.51, anchor="center")
         # self.circular_progress.lift()  # type: ignore[arg-type]
 
     def hide_circular_progress(self):
         """Hide (but do not destroy) the CircularProgress widget."""
         if self.circular_progress is not None:
             self.circular_progress.place_forget()
+
+    def show_center_overlay(self, image_path: str, size=(220, 220)):
+        """
+        Show an overlay image centered inside the CircularProgress widget.
+        """
+        if not os.path.exists(image_path):
+            print(f"Center overlay image not found: {image_path}")
+            return
+
+        if self.circular_progress is None:
+            print("CircularProgress not created yet")
+            return
+
+        # Load and resize image
+        pil_img = Image.open(image_path).convert("RGBA")
+        pil_img = pil_img.resize(size)
+
+        self._center_overlay_ctk_image = ctk.CTkImage(dark_image=pil_img, size=size)
+
+        # Create label if needed
+        if not hasattr(self, "center_overlay_label"):
+            self.center_overlay_label = ctk.CTkLabel(
+                self, text="", fg_color="transparent"
+            )
+
+        # Position overlay relative to the circular progress center
+        self.center_overlay_label.configure(image=self._center_overlay_ctk_image)
+        self.center_overlay_label.place(
+            relx=0.50,
+            rely=0.65,  # matches the circular_progress placement
+            anchor="center",
+        )
+        self.center_overlay_label.lift()
+
+    def hide_center_overlay(self):
+        if hasattr(self, "center_overlay_label"):
+            self.center_overlay_label.place_forget()
