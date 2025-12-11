@@ -78,6 +78,8 @@ class MultiPageController:
                 "second": ctk.IntVar(value=10),
                 "power": ctk.IntVar(value=50),
             },
+            # reheat cook time
+            "reheat_seconds": 0,
         }
 
         restore_saved_fan_delay_settings(self.shared_data)
@@ -505,6 +507,38 @@ class MultiPageController:
                 mgr.resume_all()
             except Exception as e:
                 print(f"[MultiPageController] resume_current_cook failed: {e}")
+
+    def start_reheat_cycle(self) -> float:
+        """
+        Simple reheat: all zones at 80% for shared_data['reheat_seconds'] seconds.
+        Returns the total time in seconds for the UI countdown.
+        """
+        try:
+            secs = float(self.shared_data.get("reheat_seconds", 0) or 0)
+        except (TypeError, ValueError):
+            secs = 0.0
+
+        if secs <= 0:
+            print("[MultiPageController] start_reheat_cycle: no reheat_seconds set")
+            return 0.0
+
+        power = 80
+        print(f"[MultiPageController] Reheat cycle: {secs:.1f}s at {power}%")
+
+        try:
+            # mark oven running and energize all zones
+            oven_state.set_running(True)
+        except Exception as e:
+            print(f"[MultiPageController] oven_state.set_running(True) failed: {e}")
+
+        try:
+            self.serial_all_zones(power)
+        except Exception as e:
+            print(f"[MultiPageController] serial_all_zones({power}) failed: {e}")
+
+        # Reheat is “timer-only” – no sequence manager here.
+        # CookingPage will later decide when it’s done and can call serial_all_zones_off().
+        return secs
 
     # ------------------------------------------------------------------
     # Application-level actions

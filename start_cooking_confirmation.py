@@ -64,9 +64,25 @@ class StartCookingConfirmation:
             self.controller.show_PrepareForCookingPage2()
 
     def on_start_clicked(self):
-        print("on_start_clicked")
-        if self.controller:
-            self.controller.show_CookingPage()
+        print("StartCookingConfirmation: Start clicked")
+        if not self.controller:
+            return
+
+        # If this is the Reheat meal, capture the chosen seconds
+        if self.meal_index == 5:
+            view = getattr(self.controller, "view", None)
+            if view and hasattr(view, "get_reheat_seconds"):
+                secs = view.get_reheat_seconds()
+                try:
+                    secs = int(secs)
+                except (TypeError, ValueError):
+                    secs = 0
+                secs = max(0, secs)
+                print(f"[StartCookingConfirmation] reheat_seconds = {secs}")
+                self.controller.shared_data["reheat_seconds"] = secs
+
+        # Then go to the CookingPage (it will read the override)
+        self.controller.show_CookingPage()
 
     # ------------------------------------------------------------------
     # Methods

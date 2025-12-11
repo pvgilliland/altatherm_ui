@@ -85,9 +85,12 @@ class CookingPage:
             if self.meal_index is None:
                 print("[CookingPage] No meal_index; cannot start")
                 return
-
             try:
-                total = float(self.controller.start_meal_program(self.meal_index))
+                if self.meal_index == 5:
+                    # Reheat mode: no sequence manager, just 80% for reheat_seconds
+                    total = float(self.controller.start_reheat_cycle())
+                else:
+                    total = float(self.controller.start_meal_program(self.meal_index))
             except Exception as e:
                 print(f"[CookingPage] controller.start_meal_program failed: {e}")
                 return
@@ -191,23 +194,65 @@ class CookingPage:
         view = getattr(self.controller, "view", None)
         cp = getattr(view, "circular_progress", None) if view else None
 
-        elapsed = time.time() - (self._start_epoch or time.time())
+        # Compute elapsed time based on the start epoch
+        now = time.time()
+        effective_start = self._start_epoch or now
+        elapsed = now - effective_start
+
+        # Update remaining time, clamped at 0
         self._remaining_time = max(0.0, self._total_time - elapsed)
 
+        # Update the circular progress widget, if present
         if cp is not None:
             cp.update_progress(self._remaining_time, self._total_time)
 
+        # If there's still time left, schedule the next tick
         if self._remaining_time > 0.0:
             self._schedule_tick()
-        else:
-            # Finished
-            self._running = False
-            self._paused = False
-            if cp is not None:
-                cp.update_progress(0.0, self._total_time)
+            return
 
-            print("[CookingPage] Cook timer complete")
-            # Optional: could navigate to a "Food Ready" page here
+        # ---------- Timer finished ----------
+        self._running = False
+        self._paused = False
+
+        if cp is not None:
+            # Ensure the ring shows "0" at the end
+            cp.update_progress(0.0, self._total_time)
+
+        print("[CookingPage] Cook timer complete")
+
+        # ----- Reheat-specific oven shutdown (meal_index == 5) -----
+        if self.meal_index == 5 and self.controller is not None:
+            # Reheat mode: we ran all zones at 80% for a fixed time,
+            # so when the timer ends we must explicitly turn them off.
+            try:
+                if hasattr(self.controller, "serial_all_zones_off"):
+                    self.controller.serial_all_zones_off()
+                else:
+                    print(
+                        "[CookingPage] controller has no serial_all_zones_off; "
+                        "cannot power down zones for reheat"
+                    )
+            except Exception as e:
+                print(f"[CookingPage] serial_all_zones_off at reheat end failed: {e}")
+
+            # Optionally: show "Cooking Finished" page if available
+            if hasattr(self.controller, "show_CookingFinishedPage"):
+                try:
+                    self.controller.show_CookingFinishedPage()
+                except Exception as e:
+                    print(f"[CookingPage] show_CookingFinishedPage failed: {e}")
+
+        # For non-reheat modes, we assume the controller / sequence runner
+        # will handle power-down on its own when the program completes.
+        # If you later want CookingPage to drive that too, you can add:
+        #
+        # else:
+        #     if hasattr(self.controller, "stop_current_cook"):
+        #         try:
+        #             self.controller.stop_current_cook()
+        #         except Exception as e:
+        #             print(f"[CookingPage] stop_current_cook at end failed: {e}")
 
     def _start_progress(self, total_seconds: float):
         """
