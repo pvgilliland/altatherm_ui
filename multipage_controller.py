@@ -188,6 +188,8 @@ class MultiPageController:
         self.show_page(self.cooking_finished_page)
 
     def show_CookingPausedPage(self) -> None:
+        # Pass the currently selected meal index into CookingPage
+        self.cooking_paused_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_paused_page)
 
     # ------------------------------------------------------------------

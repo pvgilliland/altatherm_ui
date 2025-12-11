@@ -64,7 +64,8 @@ class CookingPage:
 
         - If NOT running and NOT paused:
             * Start the cook:
-              - controller.start_meal_program(meal_index)
+              - Normal meals: controller.start_meal_program(meal_index)
+              - Reheat (meal_index == 5): controller.start_reheat_cycle()
               - start circular countdown with returned total time.
 
         - If currently running:
@@ -85,19 +86,45 @@ class CookingPage:
             if self.meal_index is None:
                 print("[CookingPage] No meal_index; cannot start")
                 return
+
+            # -----------------------------
+            # REHEAT MODE PREP (meal_index == 5)
+            # -----------------------------
+            if self.meal_index == 5:
+                # Ensure shared_data["reheat_seconds"] has a sane value.
+                # Prefer the TimeAdjustControl value from ImageHotspotView if present.
+                sd = getattr(self.controller, "shared_data", None)
+                if sd is not None:
+                    reheat_secs = sd.get("reheat_seconds", 0) or 0
+                    if reheat_secs <= 0:
+                        view = getattr(self.controller, "view", None)
+                        if view is not None and hasattr(view, "get_reheat_seconds"):
+                            try:
+                                reheat_secs = int(view.get_reheat_seconds() or 0)
+                            except (TypeError, ValueError):
+                                reheat_secs = 0
+                        sd["reheat_seconds"] = max(0, reheat_secs)
+                        print(
+                            f"[CookingPage] reheat_seconds set from view: "
+                            f"{sd['reheat_seconds']}"
+                        )
+
+            # -----------------------------
+            # START: normal vs reheat
+            # -----------------------------
             try:
                 if self.meal_index == 5:
-                    # Reheat mode: no sequence manager, just 80% for reheat_seconds
+                    # Reheat mode: no sequence manager, just all zones at 80%
                     total = float(self.controller.start_reheat_cycle())
                 else:
                     total = float(self.controller.start_meal_program(self.meal_index))
             except Exception as e:
-                print(f"[CookingPage] controller.start_meal_program failed: {e}")
+                print(f"[CookingPage] controller start failed: {e}")
                 return
 
             if total <= 0:
                 print(
-                    "[CookingPage] start_meal_program returned non-positive total; aborting"
+                    "[CookingPage] controller returned non-positive total; aborting start"
                 )
                 return
 
@@ -124,6 +151,16 @@ class CookingPage:
                     self.controller.show_CookingPausedPage()
                 except Exception as e:
                     print(f"[CookingPage] show_CookingPausedPage failed: {e}")
+
+            # If reheat mode, STOP means "send 0 to all channels"
+            if self.meal_index == 5 and self.controller is not None:
+                try:
+                    if hasattr(self.controller, "serial_all_zones"):
+                        self.controller.serial_all_zones(0)
+                    else:
+                        print("[CookingPage] controller missing serial_all_zones")
+                except Exception as e:
+                    print(f"[CookingPage] reheat STOP: serial_all_zones failed: {e}")
 
             return
 

@@ -17,6 +17,7 @@ class CookingPausedPage:
 
     def __init__(self, controller=None):
         self.controller = controller
+        self.meal_index: int | None = None
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
         assets_dir = os.path.join(here, "assets")
@@ -62,13 +63,25 @@ class CookingPausedPage:
         if not self.controller:
             return
 
-        # 1) Resume the sequence manager / hardware
-        if hasattr(self.controller, "resume_current_cook"):
-            try:
-                self.controller.resume_current_cook()
-            except Exception as e:
-                print(f"[CookingPausedPage] resume_current_cook failed: {e}")
+        if self.meal_index != 5:
+            # 1) Resume the sequence manager / hardware
+            if hasattr(self.controller, "resume_current_cook"):
+                try:
+                    self.controller.resume_current_cook()
+                except Exception as e:
+                    print(f"[CookingPausedPage] resume_current_cook failed: {e}")
+
+        if self.meal_index == 5:
+            # 1) Resume the cooking in reheat/manul mode
+            if hasattr(self.controller, "start_reheat_cycle"):
+                try:
+                    self.controller.start_reheat_cycle()
+                except Exception as e:
+                    print(f"[CookingPausedPage] start_reheat_cycle failed: {e}")
 
         # 2) Go back to CookingPage. Its on_show() will detect _paused
         #    and restart the circular timer from the remaining time.
         self.controller.show_CookingPage()
+
+    def on_show(self, meal_index: int):
+        self.meal_index = meal_index
