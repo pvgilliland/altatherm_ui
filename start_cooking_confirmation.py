@@ -26,13 +26,22 @@ class StartCookingConfirmation:
         self.controller = controller
         self.meal_index: int = -1  # ← store for incoming parameter
 
+        # self.meal_images = {
+        #     0: ("ShrimpCurry.png", "Shrimp Curry"),
+        #     1: ("ChickenParmesan.png", "Chicken Parmesan"),
+        #     2: ("BeefStirFry.png", "Beef Stir Fry"),
+        #     3: ("salmon.png", "Salmon"),
+        #     4: ("SteakAndBroccoli.png", "Steak abd Broccoli"),
+        #     5: ("Reheat.png", "Reheat"),
+        # }
+
         self.meal_images = {
-            0: ("ShrimpCurry.png", "Shrimp Curry"),
-            1: ("ChickenParmesan.png", "Chicken Parmesan"),
-            2: ("BeefStirFry.png", "Beef Stir Fry"),
-            3: ("salmon.png", "Salmon"),
-            4: ("SteakAndBroccoli.png", "Steak abd Broccoli"),
-            5: ("Reheat.png", "Reheat"),
+            0: ("food.png", "Item 1"),
+            1: ("food.png", "Item 2"),
+            2: ("food.png", "Item 3"),
+            3: ("food.png", "Item 4"),
+            4: ("food.png", "Item 5"),
+            5: ("food.png", "Reheat"),
         }
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
@@ -64,6 +73,68 @@ class StartCookingConfirmation:
             self.controller.show_PrepareForCookingPage2()
 
     def on_start_clicked(self):
+        print("StartCookingConfirmation: Start clicked")
+        if not self.controller:
+            return
+
+        # ------------------------------------------------------------
+        # BLOCK START IF EFFECTIVE COOK TIME IS ZERO
+        # ------------------------------------------------------------
+        # Reheat mode (meal_index == 5) → use the reheat time control
+        if self.meal_index == 5:
+            view = getattr(self.controller, "view", None)
+            reheat_secs = 0
+
+            if view and hasattr(view, "get_reheat_seconds"):
+                try:
+                    reheat_secs = int(view.get_reheat_seconds() or 0)
+                except (TypeError, ValueError):
+                    reheat_secs = 0
+
+            reheat_secs = max(0, reheat_secs)
+
+            if reheat_secs == 0:
+                print(
+                    "[StartCookingConfirmation] Reheat time = 0 → ignoring Start click"
+                )
+                return  # Do nothing if reheat time is zero
+
+            # Valid reheat time → store in shared_data for CookingPage
+            print(f"[StartCookingConfirmation] reheat_seconds = {reheat_secs}")
+            self.controller.shared_data["reheat_seconds"] = reheat_secs
+
+        else:
+            # Normal meal: look up the program's total_time and block if 0
+            program_number = self.meal_index + 31
+            path = str(PROGRAMS_DIR / f"program{program_number}.alt")
+
+            try:
+                with open(path, "r") as f:
+                    data = json.load(f)
+                total_time = data.get("total_time", "0:00") or "0:00"
+            except Exception as e:
+                print(f"[StartCookingConfirmation] Failed to read {path}: {e}")
+                total_time = "0:00"
+
+            # Convert "MM:SS" → total seconds
+            try:
+                minutes, seconds = map(int, str(total_time).split(":"))
+                total_seconds = minutes * 60 + seconds
+            except Exception:
+                total_seconds = 0
+
+            if total_seconds == 0:
+                print(
+                    "[StartCookingConfirmation] total_time = 0 → ignoring Start click"
+                )
+                return  # Do nothing if program time is zero
+
+        # ------------------------------------------------------------
+        # If we reach here, cook is allowed to start
+        # ------------------------------------------------------------
+        self.controller.show_CookingPage()
+
+    def zon_start_clicked(self):
         print("StartCookingConfirmation: Start clicked")
         if not self.controller:
             return
