@@ -1,11 +1,13 @@
 # multipage_controller.py
 
 import customtkinter as ctk
-from PIL import Image, ImageTk
+from PIL import Image
 import threading
 import logging
+import inspect
+import time
 
-from typing import Optional
+from typing import Optional, Dict, Type, Any, Callable
 
 from image_hotspot_view import ImageHotspotView
 from homepage import HomePage
@@ -16,6 +18,7 @@ from start_cooking_confirmation import StartCookingConfirmation
 from cooking_page import CookingPage
 from cooking_finished_page import CookingFinishedPage
 from cooking_paused_page import CookingPausedPage
+
 from SerialService import SerialService
 from DoorSafety import DoorSafety
 from hmi_consts import ASSETS_DIR, SETTINGS_DIR, PROGRAMS_DIR, HMISizePos, __version__
@@ -23,49 +26,101 @@ from helpers import restore_saved_fan_delay_settings
 from hmi_logger import setup_logging
 import oven_state
 
-# NEW: program / sequence helpers
+# program / sequence helpers
 from SelectProgramPage import load_program_into_sequence_collection
 from SequenceStructure import SequenceCollection
 from CookingSequenceRunner import CookingSequenceManager
 
+# ----------------------------
+# ADMIN PAGES (ProjectA)
+# ----------------------------
+from HomePage_admin import HomePage_admin
+from CircularProgressPage_admin import CircularProgressPage_admin
+from FoodReadyPage_admin import FoodReadyPage_admin
+
 logger = logging.getLogger("MultiPageController")
+
+
+class _AdminMasterProxy:
+    """
+    A proxy that is BOTH:
+      - a valid Tk 'master' (has .tk / ._w / .children)
+      - a controller (delegates show_* methods etc. to the real controller)
+
+    This solves ProjectA pages that do:
+      - super().__init__(controller, ...)   # treating controller as Tk master
+      - and later controller.show_HomePage() # treating same object as controller
+    """
+
+    def __init__(
+        self, master_widget: ctk.CTkBaseClass, controller: "MultiPageController"
+    ):
+        self._master = master_widget
+        self._controller = controller
+
+        # Tkinter/CustomTkinter expects these
+        self.tk = master_widget.tk
+        self._w = master_widget._w
+        self.children = master_widget.children
+
+    def __getattr__(self, name: str):
+        # Prefer controller methods/attrs first
+        if hasattr(self._controller, name):
+            return getattr(self._controller, name)
+        # Fall back to widget attrs
+        return getattr(self._master, name)
 
 
 class MultiPageController:
     """
-    MultiPageController
-    -------------------
-    Central controller that:
-      - Owns the CTk root window
-      - Owns the singleton ImageHotspotView
-      - Creates and manages page models (HomePage, etc.)
-      - Exposes show_* methods for navigation (called by page callbacks)
-      - Owns the CookingSequenceManager lifecycle for cook cycles
+    ProjectB Controller (ImageHotspotView) + Admin Overlay
+    -----------------------------------------------------
+    - Normal mode: ProjectB page *models* displayed via ImageHotspotView.set_page()
+    - Admin mode: ProjectA CTkFrames displayed inside admin_container
     """
+
+    # If you still want the "5 clicks within 3 seconds" easter egg here,
+    # call controller.on_logo_clicked() from your HomePage/logo handler.
+    _ADMIN_CLICKS_REQUIRED = 5
+    _ADMIN_CLICKS_WINDOW_S = 3.0
 
     def __init__(self, root: ctk.CTk):
         self.root = root
         self._suppress_finished_page = False  # flag for hard-cancel
 
-        # Create the singleton hotspot view inside the root
-        self.view = ImageHotspotView.get_instance(root)
-        self.view.pack(fill="both", expand=True)
+        # -------------------------------------------------
+        # ROOT GRID MUST EXPAND (so overlay fills the window)
+        # -------------------------------------------------
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
 
-        # --- create/start shared serial service (pages access via controller.serial) ---
-        self.serial = SerialService(
-            tk_root=root
-        )  # optionally: port_hint="COM5" or "ACM"
+        # ----------------------------
+        # ProjectB base UI: hotspot view
+        # ----------------------------
+        self.view = ImageHotspotView.get_instance(root)
+        # IMPORTANT: use grid (NOT pack) because admin_container also uses grid in root
+        self.view.grid(row=0, column=0, sticky="nsew")
+
+        # ----------------------------
+        # Serial + DoorSafety
+        # ----------------------------
+        self.serial = SerialService(tk_root=root)
         try:
             self.serial.start()
         except Exception as e:
             print("Serial start failed:", e)
 
-        # need to pass CTk root to make the DoorSafety model UI thread safe
         DoorSafety.Instance().set_ui_root(root)
 
-        self.is_admin = False  # <--- global admin flag lives here
+        # ----------------------------
+        # Admin mode flag + logo click tracking
+        # ----------------------------
+        self.is_admin: bool = False
+        self._logo_click_times: list[float] = []
 
-        # Shared data (controller owns defaults)
+        # ----------------------------
+        # Shared data
+        # ----------------------------
         self.shared_data = {
             "name": ctk.StringVar(),
             "age": ctk.StringVar(),
@@ -84,14 +139,14 @@ class MultiPageController:
 
         restore_saved_fan_delay_settings(self.shared_data)
 
-        # --- track pending fan-off timer ---
-        self._fan_off_timer = None
+        # fan-off timer
+        self._fan_off_timer: Optional[threading.Timer] = None
 
-        # --- currently active CookingSequenceManager (if any) ---
+        # active CookingSequenceManager
         self.sequence_manager: Optional[CookingSequenceManager] = None
         self.shared_data["sequence_manager"] = None
 
-        # Cache icons for SequenceProgramPage (still used elsewhere)
+        # Cache icons (still used elsewhere)
         self.zone_icons = []
         for i in range(8):
             icon = Image.open(f"{ASSETS_DIR}/Zone{i+1}.png").resize((24, 24))
@@ -99,7 +154,9 @@ class MultiPageController:
                 ctk.CTkImage(light_image=icon, dark_image=icon, size=(24, 24))
             )
 
-        # --- Create pages and give them a reference to this controller ---
+        # ----------------------------
+        # ProjectB pages (models)
+        # ----------------------------
         self.home_page = HomePage(controller=self)
         self.select_meal_page = SelectMealPage(controller=self)
         self.prepare_for_cooking_page1 = PrepareForCookingPage1(controller=self)
@@ -109,62 +166,271 @@ class MultiPageController:
         self.cooking_finished_page = CookingFinishedPage(controller=self)
         self.cooking_paused_page = CookingPausedPage(controller=self)
 
-        self._current_page = None
+        self._current_page: Optional[Any] = None
 
-        # after self.serial.start(), give the controller COM time to be ready to talk to
+        # after serial starts, give COM time to be ready
         self.after(2000, self.serial_get_door_switch)
 
         setup_logging("hmi")
         logger.info(f"HMI Started {[__version__]}")
 
+        # ----------------------------
+        # Admin overlay container + pages
+        # ----------------------------
+        self.admin_container = ctk.CTkFrame(self.root, fg_color="black")
+
+        # Put admin_container in SAME root cell as the main view so it can overlay it
+        self.admin_container.grid(row=0, column=0, sticky="nsew")
+        self.admin_container.grid_rowconfigure(0, weight=1)
+        self.admin_container.grid_columnconfigure(0, weight=1)
+
+        # Start hidden (we'll raise/show it on admin entry)
+        self.admin_container.grid_remove()
+
+        # Proxy that is a valid Tk master AND a controller
+        self._admin_master_proxy = _AdminMasterProxy(self.admin_container, self)
+
+        self._admin_current: Optional[ctk.CTkFrame] = None
+        self.admin_pages: Dict[Type[ctk.CTkFrame], ctk.CTkFrame] = {}
+        self._build_admin_pages()
+
     # ------------------------------------------------------------------
     # Convenience proxies to root.after / after_cancel
     # ------------------------------------------------------------------
-    def after(self, delay_ms: int, callback, *args):
-        """
-        Proxy to the Tk root's .after(), so pages and controller
-        can call controller.after(...) like a widget.
-        """
+    def after(self, delay_ms: int, callback: Callable, *args):
         return self.root.after(delay_ms, callback, *args)
 
     def after_cancel(self, after_id):
-        """
-        Proxy to the Tk root's .after_cancel() for cancelling timers.
-        """
         return self.root.after_cancel(after_id)
 
     # ------------------------------------------------------------------
-    # Core navigation helpers
+    # ProjectB navigation (ImageHotspotView)
     # ------------------------------------------------------------------
     def show_page(self, page_obj) -> None:
         """
-        Generic page switch with lifecycle hooks:
-        - Calls on_hide() on the previous page (if it exists)
-        - Calls on_show() on the new page (if it exists)
+        Normal-mode page switch:
+        - Calls on_hide() on previous page model if present
+        - Calls on_show() on new page model if present
         - Updates the ImageHotspotView
         """
-        # 1. Call on_hide on the current page (if available)
         if self._current_page and hasattr(self._current_page, "on_hide"):
             try:
                 self._current_page.on_hide()
             except Exception as e:
                 print(f"WARNING: on_hide() failed on {self._current_page}: {e}")
 
-        # 2. Call on_show on the new page (if available)
         if hasattr(page_obj, "on_show"):
             try:
                 page_obj.on_show()
             except TypeError:
-                # Some pages (like StartCookingConfirmation) expect parameters
-                # They will call on_show manually before show_page()
+                # some pages expect params, caller handles it
                 pass
+            except Exception as e:
+                print(f"WARNING: on_show() failed on {page_obj}: {e}")
 
-        # 3. Switch pages visually
         self._current_page = page_obj
         self.view.set_page(page_obj)
 
+    # ------------------------------------------------------------------
+    # Admin UI plumbing
+    # ------------------------------------------------------------------
+    def _safe_admin_construct(self, PageClass):
+        """
+        Robustly build ProjectA admin frames regardless of whether they expect:
+          - (parent, controller, shared_data)   like HomePage_admin
+          - (controller, shared_data)           where controller is ALSO used as Tk master
+          - (parent, controller)
+          - (parent)
+        """
+
+        # Try to infer signature
+        try:
+            sig = inspect.signature(PageClass.__init__)
+            params = list(sig.parameters.values())[1:]  # skip 'self'
+            names = [p.name for p in params]
+        except Exception:
+            names = []
+
+        # Case 1: explicit parent/master parameter exists (best case)
+        if "parent" in names or "master" in names:
+            parent_key = "parent" if "parent" in names else "master"
+            kwargs = {parent_key: self.admin_container}
+
+            if "controller" in names:
+                kwargs["controller"] = self
+            if "shared_data" in names:
+                kwargs["shared_data"] = self.shared_data
+
+            try:
+                frame = PageClass(**kwargs)
+                return frame
+            except Exception:
+                # fall back positional in common order
+                try:
+                    return PageClass(self.admin_container, self, self.shared_data)
+                except TypeError:
+                    try:
+                        return PageClass(self.admin_container, self)
+                    except TypeError:
+                        return PageClass(self.admin_container)
+
+        # Case 2: "controller" is first arg and used as Tk master
+        # Give it the proxy (has .tk AND forwards show_* to the real controller)
+        if len(names) >= 1 and names[0] == "controller":
+            try:
+                if "shared_data" in names:
+                    return PageClass(self._admin_master_proxy, self.shared_data)
+                return PageClass(self._admin_master_proxy)
+            except Exception:
+                pass
+
+        # Case 3: try common positional fallbacks (but never allow controller as Tk master)
+        try:
+            return PageClass(self.admin_container, self, self.shared_data)
+        except TypeError:
+            pass
+        try:
+            return PageClass(self.admin_container, self)
+        except TypeError:
+            pass
+
+        return PageClass(self.admin_container)
+
+    def _build_admin_pages(self) -> None:
+        for PageClass in (
+            HomePage_admin,
+            CircularProgressPage_admin,
+            FoodReadyPage_admin,
+        ):
+            frame = self._safe_admin_construct(PageClass)
+            self.admin_pages[PageClass] = frame
+
+            if isinstance(frame, ctk.CTkFrame):
+                try:
+                    frame.grid(row=0, column=0, sticky="nsew")
+                    frame.grid_remove()
+                except Exception:
+                    pass
+
+    def _show_admin_page(self, PageClass: Type[ctk.CTkFrame]) -> None:
+        frame = self.admin_pages.get(PageClass)
+        if frame is None:
+            print(f"[MultiPageController] Unknown admin page: {PageClass}")
+            return
+
+        # lifecycle: hide prior
+        if self._admin_current and hasattr(self._admin_current, "on_hide"):
+            try:
+                self._admin_current.on_hide()
+            except Exception:
+                pass
+
+        # hide all others
+        for f in self.admin_pages.values():
+            try:
+                f.grid_remove()
+            except Exception:
+                pass
+
+        # show target
+        try:
+            frame.grid(row=0, column=0, sticky="nsew")
+            frame.tkraise()
+        except Exception:
+            pass
+
+        self._admin_current = frame
+
+        # lifecycle: show (keep your original behavior: skip on_show for CircularProgressPage_admin)
+        if hasattr(frame, "on_show"):
+            try:
+                if PageClass is not CircularProgressPage_admin:
+                    frame.on_show()
+            except TypeError:
+                pass
+            except Exception:
+                pass
+
+    def enter_admin_mode(self) -> None:
+        """Show admin overlay and switch to Admin Home."""
+        if self.is_admin:
+            return
+
+        self.is_admin = True
+
+        # Hide normal UI (we're using grid for self.view)
+        try:
+            self.view.grid_remove()
+        except Exception:
+            pass
+
+        # Show overlay container
+        try:
+            self.admin_container.grid(row=0, column=0, sticky="nsew")
+        except Exception:
+            pass
+
+        # Make sure overlay is on top
+        try:
+            self.admin_container.tkraise()
+        except Exception:
+            pass
+
+        self._show_admin_page(HomePage_admin)
+
+    def exit_admin_mode(self) -> None:
+        """Hide admin overlay and return to normal UI."""
+        if not self.is_admin:
+            return
+
+        self.is_admin = False
+
+        # Hide admin overlay pages + container
+        try:
+            if self._admin_current is not None:
+                self._admin_current.grid_remove()
+                self._admin_current = None
+        except Exception:
+            pass
+
+        try:
+            self.admin_container.grid_remove()
+        except Exception:
+            pass
+
+        # Restore normal UI
+        try:
+            self.view.grid(row=0, column=0, sticky="nsew")
+            self.view.tkraise()
+        except Exception:
+            pass
+
+    # ----- optional: 5-click easter egg -----
+    def register_logo_click(self) -> None:
+        now = time.monotonic()
+        self._logo_click_times.append(now)
+
+        cutoff = now - self._ADMIN_CLICKS_WINDOW_S
+        self._logo_click_times = [t for t in self._logo_click_times if t >= cutoff]
+
+        if len(self._logo_click_times) >= self._ADMIN_CLICKS_REQUIRED:
+            self._logo_click_times.clear()
+            self.enter_admin_mode()
+
+    def on_logo_easter_egg(self) -> None:
+        """
+        Backwards-compatible method name: call this from ProjectB HomePage.
+        """
+        self.enter_admin_mode()
+
+    # ------------------------------------------------------------------
+    # show_* methods (ProjectB preserved + admin routing)
+    # ------------------------------------------------------------------
     def show_HomePage(self) -> None:
-        self.show_page(self.home_page)
+        if self.is_admin:
+            self._show_admin_page(HomePage_admin)
+        else:
+            self.show_page(self.home_page)
 
     def show_SelectMealPage(self) -> None:
         self.show_page(self.select_meal_page)
@@ -180,7 +446,6 @@ class MultiPageController:
         self.show_page(self.start_cooking_confirm_page)
 
     def show_CookingPage(self) -> None:
-        # Pass the currently selected meal index into CookingPage
         self.cooking_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_page)
 
@@ -188,17 +453,68 @@ class MultiPageController:
         self.show_page(self.cooking_finished_page)
 
     def show_CookingPausedPage(self) -> None:
-        # Pass the currently selected meal index into CookingPage
         self.cooking_paused_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_paused_page)
 
-    # ------------------------------------------------------------------
-    # Serial commands + fan off logic
-    # ------------------------------------------------------------------
+    # Admin-enabled versions you asked for:
+    def show_CircularProgressPage(
+        self,
+        seconds: int,
+        on_stop=None,
+        isManualCookMode: bool | None = None,
+        time_power_page: Optional[Any] = None,
+        powerLevel: int | None = None,
+        reheat_mode: bool = False,
+    ) -> None:
+        """
+        Normal mode: ProjectB CookingPage owns the CircularProgress UI.
+        Admin mode: routes to CircularProgressPage_admin and starts it.
+        """
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_CircularProgressPage ignored in normal mode (ProjectB)"
+            )
+            return
 
-    # --- helpers for fan-off timer ---
+        page = self.admin_pages.get(CircularProgressPage_admin)
+        if page is None:
+            print("[MultiPageController] CircularProgressPage_admin not constructed")
+            return
+
+        self._show_admin_page(CircularProgressPage_admin)
+
+        # Start it (most ProjectA variants expose .start(seconds, on_stop=...))
+        try:
+            if hasattr(page, "start"):
+                page.start(seconds, on_stop=on_stop)
+            elif hasattr(page, "begin"):
+                page.begin(seconds, on_stop=on_stop)
+            else:
+                print(
+                    "[MultiPageController] CircularProgressPage_admin has no start/begin method"
+                )
+        except Exception as e:
+            print(f"[MultiPageController] CircularProgressPage_admin start failed: {e}")
+
+    def show_FoodReadyPage(self, auto_return_to=None, after_ms=3000) -> None:
+        """
+        Normal mode: ProjectB flow uses CookingFinishedPage.
+        Admin mode: show FoodReadyPage_admin (supports your admin flow request).
+        """
+        if not self.is_admin:
+            self.show_CookingFinishedPage()
+            return
+
+        def _show():
+            self._show_admin_page(FoodReadyPage_admin)
+
+        # keep your existing 2s delay behavior
+        self.after(2000, _show)
+
+    # ------------------------------------------------------------------
+    # Serial commands + fan off logic (unchanged from ProjectB)
+    # ------------------------------------------------------------------
     def _cancel_fan_off_timer(self):
-        """Cancel any scheduled fan-off so it won't trip while cooking resumes."""
         t = getattr(self, "_fan_off_timer", None)
         if t and t.is_alive():
             try:
@@ -208,10 +524,6 @@ class MultiPageController:
         self._fan_off_timer = None
 
     def _schedule_fan_off_after_delay(self):
-        """
-        Schedule fan off based on TimePage delay (minute/second) stored in shared_data.
-        Cancels any previous schedule and sets a fresh one.
-        """
         self._cancel_fan_off_timer()
 
         tp = self.shared_data.get("time_page", {})
@@ -235,12 +547,7 @@ class MultiPageController:
         self._fan_off_timer = threading.Timer(delay_seconds, delayed_fan_off)
         self._fan_off_timer.start()
 
-    # zone: 1 - 8, power: 0 - 100
     def serial_zone(self, zone: int, power: int):
-        """
-        Send Znn=xxx. If any element is energized (power > 0),
-        cancel pending fan-off countdown to avoid shutting the fan off mid-run.
-        """
         oven_state.set_running(True)
         try:
             if power > 0:
@@ -254,9 +561,6 @@ class MultiPageController:
             logger.info(f"Zone{zone} Power = {power}")
 
     def serial_all_zones(self, power: int):
-        """
-        Set all zones to given power. If energizing (power > 0), cancel the fan-off timer.
-        """
         if power > 0:
             self._cancel_fan_off_timer()
 
@@ -267,102 +571,65 @@ class MultiPageController:
                 print(f"Error in serial_all_zones {zone}: {e}")
 
     def serial_all_zones_off(self):
-        """
-        Turn everything off and schedule the fan shutdown delay.
-        """
         if oven_state.get_running():
             oven_state.set_running(False)
             logger.info("Cook Cycle Ended")
         try:
             print("In serial_all_zones_off()")
-            # Controller convention: broadcast Z00=000 to turn everything off
             self.serial.send("Z00=000")
-            # Schedule fan off after delay (or immediately if delay=0)
             self._schedule_fan_off_after_delay()
         except Exception:
             pass
 
-    # request the thermistor resistances
     def serial_get_thermistor(self):
-        cmd = "R"
-        self.serial.send(cmd)
+        self.serial.send("R")
 
     def serial_get_versions(self):
-        cmd = "I"
-        self.serial.send(cmd)
+        self.serial.send("I")
 
     def serial_get_IR_temp(self, sensor: int):
-        cmd = f"T{sensor}"
-        self.serial.send(cmd)
+        self.serial.send(f"T{sensor}")
 
     def serial_get_door_switch(self):
-        cmd = "D"
-        self.serial.send(cmd)
+        self.serial.send("D")
 
     def serial_get_door_lock(self):
-        cmd = "L"
-        self.serial.send(cmd)
+        self.serial.send("L")
 
     def serial_door_lock(self, on: bool):
-        cmd = "L=" + ("1" if on else "0")
-        self.serial.send(cmd)
+        self.serial.send("L=" + ("1" if on else "0"))
 
     def serial_get_fan(self):
-        cmd = "F"
-        self.serial.send(cmd)
+        self.serial.send("F")
 
     def serial_fan(self, on: bool):
-        cmd = "F=" + ("1" if on else "0")
-        self.serial.send(cmd)
+        self.serial.send("F=" + ("1" if on else "0"))
 
     # ------------------------------------------------------------------
-    # Cooking sequence lifecycle (BEST DESIGN)
+    # Cooking sequence lifecycle (unchanged from ProjectB)
     # ------------------------------------------------------------------
     def _on_all_zones_complete(self):
-        """
-        Called once when all zone runners complete.
-        Runs in a worker thread (CookingSequenceRunner's done_callback).
-        """
         try:
             self.serial_all_zones_off()
         except Exception as e:
-            print(
-                f"[MultiPageController] serial_all_zones_off in _on_all_zones_complete failed: {e}"
-            )
+            print(f"[MultiPageController] serial_all_zones_off failed: {e}")
 
         try:
             oven_state.set_running(False)
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(False) failed: {e}")
 
-        # If this was a HARD STOP, don't navigate to CookingFinishedPage
         if getattr(self, "_suppress_finished_page", False):
             print("[MultiPageController] Hard stop: suppressing CookingFinishedPage")
-            self._suppress_finished_page = False  # reset for next run
+            self._suppress_finished_page = False
             return
 
-        # When cooking is truly finished, show the CookingFinishedPage
         try:
-            # Must switch pages on the Tk UI thread
             self.after(0, self.show_CookingFinishedPage)
         except Exception as e:
-            print(
-                f"[MultiPageController] show_CookingFinishedPage in _on_all_zones_complete failed: {e}"
-            )
+            print(f"[MultiPageController] show_CookingFinishedPage failed: {e}")
 
     def start_meal_program(self, meal_index: int) -> float:
-        """
-        BEST DESIGN:
-        Build and start CookingSequenceManager for the selected meal program.
-
-        - Loads program{31+meal_index}.alt into SequenceCollection
-        - Builds per-zone sequences from SequenceCollection
-        - Creates CookingSequenceManager and wires it to serial_zone
-        - Ensures a dummy Zone8 sequence exists
-        - Starts all runners
-        - Marks oven_state running
-        - Returns total cook time in seconds (max across zones)
-        """
         if meal_index is None:
             print("[MultiPageController] start_meal_program: meal_index is None")
             return 0.0
@@ -370,7 +637,6 @@ class MultiPageController:
         program_number = meal_index + 31
         print(f"[MultiPageController] Starting meal program {program_number}")
 
-        # 1) Load the program into SequenceCollection
         try:
             load_program_into_sequence_collection(program_number)
         except Exception as e:
@@ -382,7 +648,6 @@ class MultiPageController:
         sc = SequenceCollection.Instance()
         zone_sequences: list[tuple[str, list[tuple[float, float]]]] = []
 
-        # 2) Gather non-empty zone sequences (Zone1..Zone8)
         for zone_idx in range(8):
             zone = sc.get_zone_sequence_by_index(zone_idx)
             if not zone:
@@ -407,10 +672,8 @@ class MultiPageController:
             print("[MultiPageController] No non-empty zone sequences; aborting")
             return 0.0
 
-        # 3) Construct the manager
         mgr = CookingSequenceManager()
 
-        # callback to send to hardware
         def set_zone_output(zone_name, value, duration):
             try:
                 zone_id = int(zone_name.replace("Zone", ""))
@@ -422,32 +685,26 @@ class MultiPageController:
             except Exception as e:
                 print(f"[HW] serial_zone({zone_id}, {value}) failed: {e}")
 
-        # 3b) Add DAC/Zones
         zone8_flag = False
         for zone_name, steps in zone_sequences:
             mgr.add_dac(zone_name, steps, set_zone_output)
             if zone_name == "Zone8":
                 zone8_flag = True
 
-        # If there is no Zone8 configured, add a dummy Zone8 [(0s, 0%)]
         if not zone8_flag:
             mgr.add_dac("Zone8", [(0.0, 0)], set_zone_output)
 
-        # 4) Ensure we power-down when all zones complete.
         mgr.set_on_all_complete(self._on_all_zones_complete)
 
-        # 5) Cache manager
         self.sequence_manager = mgr
         self.shared_data["sequence_manager"] = mgr
 
-        # 6) Determine overall program length (max across zones)
         def zone_total(steps):
             return sum(d for (d, _p) in steps)
 
         total_seconds = max(zone_total(steps) for _name, steps in zone_sequences)
         print(f"[MultiPageController] Meal program total time = {total_seconds:.1f}s")
 
-        # 7) Mark oven running and start
         try:
             oven_state.set_running(True)
         except Exception as e:
@@ -462,10 +719,6 @@ class MultiPageController:
         return float(total_seconds)
 
     def stop_current_cook(self) -> None:
-        """
-        Stop any active CookingSequenceManager and power down zones.
-        Safe to call even if nothing is running.
-        """
         mgr = self.sequence_manager or self.shared_data.get("sequence_manager")
         if mgr:
             try:
@@ -478,9 +731,7 @@ class MultiPageController:
         try:
             self.serial_all_zones_off()
         except Exception as e:
-            print(
-                f"[MultiPageController] serial_all_zones_off in stop_current_cook failed: {e}"
-            )
+            print(f"[MultiPageController] serial_all_zones_off failed: {e}")
 
         try:
             oven_state.set_running(False)
@@ -488,10 +739,6 @@ class MultiPageController:
             print(f"[MultiPageController] oven_state.set_running(False) failed: {e}")
 
     def pause_current_cook(self, cut_output: bool = True) -> None:
-        """
-        Optional: pause all zones while keeping the cook session alive.
-        Not currently used by CookingPage, but ready for future Pause UI.
-        """
         mgr = self.sequence_manager or self.shared_data.get("sequence_manager")
         if mgr and hasattr(mgr, "pause_all"):
             try:
@@ -500,9 +747,6 @@ class MultiPageController:
                 print(f"[MultiPageController] pause_current_cook failed: {e}")
 
     def resume_current_cook(self) -> None:
-        """
-        Optional: resume all zones after a pause.
-        """
         mgr = self.sequence_manager or self.shared_data.get("sequence_manager")
         if mgr and hasattr(mgr, "resume_all"):
             try:
@@ -511,10 +755,6 @@ class MultiPageController:
                 print(f"[MultiPageController] resume_current_cook failed: {e}")
 
     def start_reheat_cycle(self) -> float:
-        """
-        Simple reheat: all zones at 80% for shared_data['reheat_seconds'] seconds.
-        Returns the total time in seconds for the UI countdown.
-        """
         try:
             secs = float(self.shared_data.get("reheat_seconds", 0) or 0)
         except (TypeError, ValueError):
@@ -528,7 +768,6 @@ class MultiPageController:
         print(f"[MultiPageController] Reheat cycle: {secs:.1f}s at {power}%")
 
         try:
-            # mark oven running and energize all zones
             oven_state.set_running(True)
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(True) failed: {e}")
@@ -538,29 +777,27 @@ class MultiPageController:
         except Exception as e:
             print(f"[MultiPageController] serial_all_zones({power}) failed: {e}")
 
-        # Reheat is “timer-only” – no sequence manager here.
-        # CookingPage will later decide when it’s done and can call serial_all_zones_off().
         return secs
 
-    # ------------------------------------------------------------------
-    # Application-level actions
-    # ------------------------------------------------------------------
+    def get(self, key, default=None):
+        """
+        Compatibility shim for ProjectA admin pages that treat controller like a dict.
+        """
+        try:
+            return self.shared_data.get(key, default)
+        except Exception:
+            return default
+
     def exit_app(self) -> None:
-        """Cleanly shut down the application."""
         self.root.destroy()
 
 
-# ----------------------------------------------------------------------
-# Self-test / harness
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
 
     root = ctk.CTk()
     root.geometry("1280x800")
-
-    # root.overrideredirect(True) # remove the titlebar
 
     controller = MultiPageController(root)
     controller.show_HomePage()
