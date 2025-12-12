@@ -11,5 +11,5 @@
     "second": 10,
     "power": 50
   },
-  "use_sound": false
+  "use_sound": true
 }

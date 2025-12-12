@@ -42,12 +42,7 @@ from FoodReadyPage_admin import FoodReadyPage_admin
 from TimePowerPage import TimePowerPage
 from TimePage import TimePage
 from SelectProgramPage import SelectProgramPage
-
-try:
-    from DiagnosticsPage import DiagnosticsPage  # type: ignore
-except Exception:
-    DiagnosticsPage = None  # type: ignore
-
+from DiagnosticsPage import DiagnosticsPage
 
 logger = logging.getLogger("MultiPageController")
 
@@ -269,7 +264,12 @@ class MultiPageController:
         """
 
         # Special cases: these pages expect (controller, shared_data) and use controller as Tk master
-        if PageClass.__name__ in ("SelectProgramPage", "TimePowerPage", "TimePage"):
+        if PageClass.__name__ in (
+            "SelectProgramPage",
+            "TimePowerPage",
+            "TimePage",
+            "DiagnosticsPage",
+        ):
             return PageClass(self._admin_master_proxy, self.shared_data)
 
         # Try to infer signature
