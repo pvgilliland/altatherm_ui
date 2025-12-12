@@ -38,6 +38,17 @@ from HomePage_admin import HomePage_admin
 from CircularProgressPage_admin import CircularProgressPage_admin
 from FoodReadyPage_admin import FoodReadyPage_admin
 
+# Optional admin pages (may not exist in ProjectB yet)
+from TimePowerPage import TimePowerPage
+from TimePage import TimePage
+from SelectProgramPage import SelectProgramPage
+
+try:
+    from DiagnosticsPage import DiagnosticsPage  # type: ignore
+except Exception:
+    DiagnosticsPage = None  # type: ignore
+
+
 logger = logging.getLogger("MultiPageController")
 
 
@@ -48,8 +59,8 @@ class _AdminMasterProxy:
       - a controller (delegates show_* methods etc. to the real controller)
 
     This solves ProjectA pages that do:
-      - super().__init__(controller, ...)   # treating controller as Tk master
-      - and later controller.show_HomePage() # treating same object as controller
+      - super().__init__(controller, ...)     # treating controller as Tk master
+      - controller.show_HomePage()            # treating same object as controller
     """
 
     def __init__(
@@ -71,6 +82,36 @@ class _AdminMasterProxy:
         return getattr(self._master, name)
 
 
+class _AdminPlaceholderPage(ctk.CTkFrame):
+    """Simple placeholder so admin buttons don't crash if a page isn't copied in yet."""
+
+    def __init__(self, parent, controller: "MultiPageController", title: str):
+        super().__init__(parent, fg_color="black")
+        self.controller = controller
+
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        lbl = ctk.CTkLabel(self, text=title, font=ctk.CTkFont(size=42, weight="bold"))
+        lbl.grid(row=0, column=0, pady=(60, 20))
+
+        sub = ctk.CTkLabel(
+            self,
+            text="(Placeholder page — wire real admin page when ready)",
+            font=ctk.CTkFont(size=20),
+        )
+        sub.grid(row=1, column=0, pady=(0, 30))
+
+        btn = ctk.CTkButton(
+            self,
+            text="Back",
+            width=260,
+            height=80,
+            command=self.controller.show_HomePage,
+        )
+        btn.grid(row=2, column=0, pady=(0, 40))
+
+
 class MultiPageController:
     """
     ProjectB Controller (ImageHotspotView) + Admin Overlay
@@ -79,8 +120,6 @@ class MultiPageController:
     - Admin mode: ProjectA CTkFrames displayed inside admin_container
     """
 
-    # If you still want the "5 clicks within 3 seconds" easter egg here,
-    # call controller.on_logo_clicked() from your HomePage/logo handler.
     _ADMIN_CLICKS_REQUIRED = 5
     _ADMIN_CLICKS_WINDOW_S = 3.0
 
@@ -88,9 +127,7 @@ class MultiPageController:
         self.root = root
         self._suppress_finished_page = False  # flag for hard-cancel
 
-        # -------------------------------------------------
-        # ROOT GRID MUST EXPAND (so overlay fills the window)
-        # -------------------------------------------------
+        # Root grid must expand so overlay fills the window
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
@@ -98,7 +135,6 @@ class MultiPageController:
         # ProjectB base UI: hotspot view
         # ----------------------------
         self.view = ImageHotspotView.get_instance(root)
-        # IMPORTANT: use grid (NOT pack) because admin_container also uses grid in root
         self.view.grid(row=0, column=0, sticky="nsew")
 
         # ----------------------------
@@ -133,13 +169,11 @@ class MultiPageController:
                 "second": ctk.IntVar(value=10),
                 "power": ctk.IntVar(value=50),
             },
-            # reheat cook time
             "reheat_seconds": 0,
         }
 
         restore_saved_fan_delay_settings(self.shared_data)
 
-        # fan-off timer
         self._fan_off_timer: Optional[threading.Timer] = None
 
         # active CookingSequenceManager
@@ -178,20 +212,18 @@ class MultiPageController:
         # Admin overlay container + pages
         # ----------------------------
         self.admin_container = ctk.CTkFrame(self.root, fg_color="black")
-
-        # Put admin_container in SAME root cell as the main view so it can overlay it
         self.admin_container.grid(row=0, column=0, sticky="nsew")
         self.admin_container.grid_rowconfigure(0, weight=1)
         self.admin_container.grid_columnconfigure(0, weight=1)
-
-        # Start hidden (we'll raise/show it on admin entry)
-        self.admin_container.grid_remove()
+        self.admin_container.grid_remove()  # hidden by default
 
         # Proxy that is a valid Tk master AND a controller
         self._admin_master_proxy = _AdminMasterProxy(self.admin_container, self)
 
         self._admin_current: Optional[ctk.CTkFrame] = None
-        self.admin_pages: Dict[Type[ctk.CTkFrame], ctk.CTkFrame] = {}
+        self.admin_pages: Dict[Any, ctk.CTkFrame] = {}
+
+        # Build admin pages (real or placeholders)
         self._build_admin_pages()
 
     # ------------------------------------------------------------------
@@ -207,12 +239,6 @@ class MultiPageController:
     # ProjectB navigation (ImageHotspotView)
     # ------------------------------------------------------------------
     def show_page(self, page_obj) -> None:
-        """
-        Normal-mode page switch:
-        - Calls on_hide() on previous page model if present
-        - Calls on_show() on new page model if present
-        - Updates the ImageHotspotView
-        """
         if self._current_page and hasattr(self._current_page, "on_hide"):
             try:
                 self._current_page.on_hide()
@@ -223,7 +249,6 @@ class MultiPageController:
             try:
                 page_obj.on_show()
             except TypeError:
-                # some pages expect params, caller handles it
                 pass
             except Exception as e:
                 print(f"WARNING: on_show() failed on {page_obj}: {e}")
@@ -237,11 +262,15 @@ class MultiPageController:
     def _safe_admin_construct(self, PageClass):
         """
         Robustly build ProjectA admin frames regardless of whether they expect:
-          - (parent, controller, shared_data)   like HomePage_admin
-          - (controller, shared_data)           where controller is ALSO used as Tk master
+          - (parent, controller, shared_data)
+          - (controller, shared_data) where controller is ALSO used as Tk master
           - (parent, controller)
           - (parent)
         """
+
+        # Special cases: these pages expect (controller, shared_data) and use controller as Tk master
+        if PageClass.__name__ in ("SelectProgramPage", "TimePowerPage", "TimePage"):
+            return PageClass(self._admin_master_proxy, self.shared_data)
 
         # Try to infer signature
         try:
@@ -251,21 +280,18 @@ class MultiPageController:
         except Exception:
             names = []
 
-        # Case 1: explicit parent/master parameter exists (best case)
+        # Case 1: explicit parent/master parameter exists
         if "parent" in names or "master" in names:
             parent_key = "parent" if "parent" in names else "master"
             kwargs = {parent_key: self.admin_container}
-
             if "controller" in names:
                 kwargs["controller"] = self
             if "shared_data" in names:
                 kwargs["shared_data"] = self.shared_data
 
             try:
-                frame = PageClass(**kwargs)
-                return frame
+                return PageClass(**kwargs)
             except Exception:
-                # fall back positional in common order
                 try:
                     return PageClass(self.admin_container, self, self.shared_data)
                 except TypeError:
@@ -274,9 +300,14 @@ class MultiPageController:
                     except TypeError:
                         return PageClass(self.admin_container)
 
-        # Case 2: "controller" is first arg and used as Tk master
-        # Give it the proxy (has .tk AND forwards show_* to the real controller)
-        if len(names) >= 1 and names[0] == "controller":
+        # Case 2: "controller" is first arg AND page explicitly expects controller-as-master
+        # Only allow for known ProjectA pages that actually require this
+        if (
+            len(names) >= 1
+            and names[0] == "controller"
+            and PageClass.__name__
+            in ("CircularProgressPage_admin", "FoodReadyPage_admin")
+        ):
             try:
                 if "shared_data" in names:
                     return PageClass(self._admin_master_proxy, self.shared_data)
@@ -284,7 +315,7 @@ class MultiPageController:
             except Exception:
                 pass
 
-        # Case 3: try common positional fallbacks (but never allow controller as Tk master)
+        # Case 3: common positional fallbacks
         try:
             return PageClass(self.admin_container, self, self.shared_data)
         except TypeError:
@@ -296,26 +327,85 @@ class MultiPageController:
 
         return PageClass(self.admin_container)
 
+    def _register_admin_page(self, key: Any, frame: ctk.CTkFrame) -> None:
+        self.admin_pages[key] = frame
+        try:
+            frame.grid(row=0, column=0, sticky="nsew")
+            frame.grid_remove()
+        except Exception:
+            pass
+
     def _build_admin_pages(self) -> None:
+        # Required admin pages
         for PageClass in (
             HomePage_admin,
             CircularProgressPage_admin,
             FoodReadyPage_admin,
         ):
             frame = self._safe_admin_construct(PageClass)
-            self.admin_pages[PageClass] = frame
+            self._register_admin_page(PageClass, frame)
 
-            if isinstance(frame, ctk.CTkFrame):
-                try:
-                    frame.grid(row=0, column=0, sticky="nsew")
-                    frame.grid_remove()
-                except Exception:
-                    pass
+        # Optional admin pages (use placeholders if missing)
+        if TimePowerPage is not None:
+            try:
+                frame = self._safe_admin_construct(TimePowerPage)
+            except Exception:
+                frame = _AdminPlaceholderPage(
+                    self.admin_container, self, "Time + Power (TODO)"
+                )
+        else:
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Time + Power (TODO)"
+            )
+        self._register_admin_page("TimePowerPage", frame)
 
-    def _show_admin_page(self, PageClass: Type[ctk.CTkFrame]) -> None:
-        frame = self.admin_pages.get(PageClass)
+        if TimePage is not None:
+            try:
+                frame = self._safe_admin_construct(TimePage)
+            except Exception:
+                frame = _AdminPlaceholderPage(
+                    self.admin_container, self, "Fan Delay (TODO)"
+                )
+        else:
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Fan Delay (TODO)"
+            )
+        self._register_admin_page("TimePage", frame)
+
+        if DiagnosticsPage is not None:
+            try:
+                frame = self._safe_admin_construct(DiagnosticsPage)
+            except Exception:
+                frame = _AdminPlaceholderPage(
+                    self.admin_container, self, "Diagnostics (TODO)"
+                )
+        else:
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Diagnostics (TODO)"
+            )
+        self._register_admin_page("DiagnosticsPage", frame)
+
+        if SelectProgramPage is not None:
+            try:
+                frame = self._safe_admin_construct(SelectProgramPage)
+            except Exception as e:
+                print(f"[Admin] SelectProgramPage construct failed: {e}")
+                import traceback
+
+                traceback.print_exc()
+                frame = _AdminPlaceholderPage(
+                    self.admin_container, self, "Select Program (TODO)"
+                )
+        else:
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Select Program (TODO)"
+            )
+        self._register_admin_page("SelectProgramPage", frame)
+
+    def _show_admin_page(self, key: Any) -> None:
+        frame = self.admin_pages.get(key)
         if frame is None:
-            print(f"[MultiPageController] Unknown admin page: {PageClass}")
+            print(f"[MultiPageController] Unknown admin page key: {key}")
             return
 
         # lifecycle: hide prior
@@ -344,7 +434,7 @@ class MultiPageController:
         # lifecycle: show (keep your original behavior: skip on_show for CircularProgressPage_admin)
         if hasattr(frame, "on_show"):
             try:
-                if PageClass is not CircularProgressPage_admin:
+                if key is not CircularProgressPage_admin:
                     frame.on_show()
             except TypeError:
                 pass
@@ -352,13 +442,12 @@ class MultiPageController:
                 pass
 
     def enter_admin_mode(self) -> None:
-        """Show admin overlay and switch to Admin Home."""
         if self.is_admin:
             return
 
         self.is_admin = True
 
-        # Hide normal UI (we're using grid for self.view)
+        # Hide normal UI
         try:
             self.view.grid_remove()
         except Exception:
@@ -367,11 +456,6 @@ class MultiPageController:
         # Show overlay container
         try:
             self.admin_container.grid(row=0, column=0, sticky="nsew")
-        except Exception:
-            pass
-
-        # Make sure overlay is on top
-        try:
             self.admin_container.tkraise()
         except Exception:
             pass
@@ -379,13 +463,12 @@ class MultiPageController:
         self._show_admin_page(HomePage_admin)
 
     def exit_admin_mode(self) -> None:
-        """Hide admin overlay and return to normal UI."""
         if not self.is_admin:
             return
 
         self.is_admin = False
 
-        # Hide admin overlay pages + container
+        # Hide admin overlay container + pages
         try:
             if self._admin_current is not None:
                 self._admin_current.grid_remove()
@@ -409,7 +492,6 @@ class MultiPageController:
     def register_logo_click(self) -> None:
         now = time.monotonic()
         self._logo_click_times.append(now)
-
         cutoff = now - self._ADMIN_CLICKS_WINDOW_S
         self._logo_click_times = [t for t in self._logo_click_times if t >= cutoff]
 
@@ -418,9 +500,6 @@ class MultiPageController:
             self.enter_admin_mode()
 
     def on_logo_easter_egg(self) -> None:
-        """
-        Backwards-compatible method name: call this from ProjectB HomePage.
-        """
         self.enter_admin_mode()
 
     # ------------------------------------------------------------------
@@ -456,6 +535,39 @@ class MultiPageController:
         self.cooking_paused_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_paused_page)
 
+    # ---- Admin pages called by HomePage_admin ----
+    def show_TimePowerPage(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_TimePowerPage called in normal mode; ignoring."
+            )
+            return
+        self._show_admin_page("TimePowerPage")
+
+    def show_TimePage(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_TimePage called in normal mode; ignoring."
+            )
+            return
+        self._show_admin_page("TimePage")
+
+    def show_DiagnosticsPage(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_DiagnosticsPage called in normal mode; ignoring."
+            )
+            return
+        self._show_admin_page("DiagnosticsPage")
+
+    def show_SelectProgramPage(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_SelectProgramPage called in normal mode; ignoring."
+            )
+            return
+        self._show_admin_page("SelectProgramPage")
+
     # Admin-enabled versions you asked for:
     def show_CircularProgressPage(
         self,
@@ -466,10 +578,6 @@ class MultiPageController:
         powerLevel: int | None = None,
         reheat_mode: bool = False,
     ) -> None:
-        """
-        Normal mode: ProjectB CookingPage owns the CircularProgress UI.
-        Admin mode: routes to CircularProgressPage_admin and starts it.
-        """
         if not self.is_admin:
             print(
                 "[MultiPageController] show_CircularProgressPage ignored in normal mode (ProjectB)"
@@ -483,7 +591,6 @@ class MultiPageController:
 
         self._show_admin_page(CircularProgressPage_admin)
 
-        # Start it (most ProjectA variants expose .start(seconds, on_stop=...))
         try:
             if hasattr(page, "start"):
                 page.start(seconds, on_stop=on_stop)
@@ -497,10 +604,6 @@ class MultiPageController:
             print(f"[MultiPageController] CircularProgressPage_admin start failed: {e}")
 
     def show_FoodReadyPage(self, auto_return_to=None, after_ms=3000) -> None:
-        """
-        Normal mode: ProjectB flow uses CookingFinishedPage.
-        Admin mode: show FoodReadyPage_admin (supports your admin flow request).
-        """
         if not self.is_admin:
             self.show_CookingFinishedPage()
             return
@@ -508,7 +611,6 @@ class MultiPageController:
         def _show():
             self._show_admin_page(FoodReadyPage_admin)
 
-        # keep your existing 2s delay behavior
         self.after(2000, _show)
 
     # ------------------------------------------------------------------
@@ -780,9 +882,7 @@ class MultiPageController:
         return secs
 
     def get(self, key, default=None):
-        """
-        Compatibility shim for ProjectA admin pages that treat controller like a dict.
-        """
+        """Compatibility shim for ProjectA admin pages that treat controller like a dict."""
         try:
             return self.shared_data.get(key, default)
         except Exception:
