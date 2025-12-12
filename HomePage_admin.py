@@ -1,26 +1,21 @@
-# HomePage.py (IntelliSense-enhanced)
+# HomePage_admin.py (FULL UPDATE with capped scaling)
 from __future__ import annotations
 
 import os
 from datetime import datetime
 import customtkinter as ctk
-from tkinter import messagebox
 from PIL import Image
 from typing import TYPE_CHECKING, Optional, Dict, Any
 
 from play_sound import play_click
 
-# Only import these for the type checker to avoid circular imports at runtime
 if TYPE_CHECKING:
-    from MultiPageController import MultiPageController
+    from multipage_controller import MultiPageController
     from SerialService import SerialService
 
-from hmi_consts import HMIColors, HMISerial, HMISizePos
+from hmi_consts import HMISizePos
 from PeriodicTimer import PeriodicTimer
 
-# from ReusableDialog import ReusableDialog
-
-# Use the same colors as TimePowerPage for a consistent look
 from ui_bits import COLOR_NUMBERS, COLOR_BLUE, COLOR_FG
 from hmi_consts import ASSETS_DIR, SETTINGS_DIR, PROGRAMS_DIR
 
@@ -29,12 +24,10 @@ class HomePage_admin(ctk.CTkFrame):
     def __init__(
         self, parent, controller: "MultiPageController", shared_data: Dict[str, Any]
     ):
-        # Match TimePowerPage background
         super().__init__(parent, fg_color=COLOR_FG)
         self.controller: "MultiPageController" = controller
         self.shared_data: Dict[str, Any] = shared_data
 
-        # Serial: use the shared SerialService owned by controller (no direct pyserial here)
         self.serial: Optional["SerialService"] = getattr(
             self.controller, "serial", None
         )
@@ -42,18 +35,29 @@ class HomePage_admin(ctk.CTkFrame):
         self._build_ui()
         self.add_log("HMI Started")
 
-        # Keep your existing periodic timer hook (no serial dependency)
-        self.timer: PeriodicTimer = PeriodicTimer(1.0, self.my_task)  # 1.0 sec
+        self.timer: PeriodicTimer = PeriodicTimer(1.0, self.my_task)
         self.timer.start()
 
     # ---------------- UI ----------------
+
     def _build_ui(self) -> None:
-        # Root grid: logo (row 0), button area (row 1), optional log (row 2)
+        # ---- helpers ----
+        def cap(v: int, mx: int) -> int:
+            return min(int(v), int(mx))
+
+        def cs(x: int, mx: int) -> int:
+            return cap(HMISizePos.s(x), mx)
+
+        def csx(x: int, mx: int) -> int:
+            return cap(HMISizePos.sx(x), mx)
+
+        def csy(y: int, mx: int) -> int:
+            return cap(HMISizePos.sy(y), mx)
+
+        # Root grid
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0)
-        self.grid_rowconfigure(
-            1, weight=1
-        )  # <-- allow button area to expand (big cards)
+        self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
 
         # ----------------------------
@@ -64,10 +68,7 @@ class HomePage_admin(ctk.CTkFrame):
             self.logo_img = ctk.CTkImage(
                 light_image=img,
                 dark_image=img,
-                size=(
-                    HMISizePos.sx(650),
-                    HMISizePos.sy(90),
-                ),  # bigger like your reference
+                size=(csx(650, 650), csy(90, 90)),
             )
         except Exception as e:
             print(f"[HomePage_admin] Failed to load logo: {e}")
@@ -77,39 +78,44 @@ class HomePage_admin(ctk.CTkFrame):
             self, image=self.logo_img, text="", fg_color="transparent"
         )
         self.logo_label.grid(
-            row=0, column=0, pady=(HMISizePos.sy(15), HMISizePos.sy(10)), sticky="n"
+            row=0,
+            column=0,
+            pady=(csy(15, 20), csy(10, 16)),
+            sticky="n",
         )
 
         # ----------------------------
-        # Button area container (RESPONSIVE GRID)
+        # Button area container (single column; rows contain their own centering grids)
         # ----------------------------
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
         button_frame.grid(
             row=1,
             column=0,
-            sticky="n",  # keep the block anchored near top-center like your screenshot
-            padx=HMISizePos.sx(40),
-            pady=HMISizePos.sy(20),
+            sticky="n",
+            padx=csx(40, 60),
+            pady=csy(20, 40),
         )
+        button_frame.grid_rowconfigure(0, weight=1)
+        button_frame.grid_rowconfigure(1, weight=1)
+        button_frame.grid_columnconfigure(0, weight=1)
 
-        # 3 columns x 2 rows, responsive inside the block (this creates big "cards")
-        for r in range(2):
-            button_frame.grid_rowconfigure(r, weight=1, uniform="row")
-        for c in range(3):
-            button_frame.grid_columnconfigure(c, weight=1, uniform="col")
+        # ----------------------------
+        # Shared button sizing (IDENTICAL for all 5)
+        # ----------------------------
+        btn_w = csx(300, 300)
+        btn_h = csy(240, 240)
 
-        # --- Card sizing (IMPORTANT) ---
-        # Don’t use HMISizePos.BTN_WIDTH/BTN_HEIGHT (those are giving you pills) :contentReference[oaicite:1]{index=1}
-        btn_w = HMISizePos.sx(360)
-        btn_h = HMISizePos.sy(240)
-
-        font_btn = ctk.CTkFont(family="Arial", size=HMISizePos.s(34), weight="bold")
+        font_btn = ctk.CTkFont(
+            family="Arial",
+            size=cs(34, 32),
+            weight="bold",
+        )
 
         btn_kwargs = dict(
             font=font_btn,
-            corner_radius=HMISizePos.s(26),
+            corner_radius=cs(26, 26),
             border_width=2,
-            fg_color=COLOR_FG,  # outlined-card look (same fill as background)
+            fg_color=COLOR_FG,
             text_color=COLOR_BLUE,
             border_color=COLOR_BLUE,
             hover_color=COLOR_NUMBERS,
@@ -117,33 +123,52 @@ class HomePage_admin(ctk.CTkFrame):
             height=btn_h,
         )
 
-        # --- Row 0 (top): Manual | Configure | Fan Delay ---
+        pad_y = csy(18, 28)
+        pad_x = csx(30, 45)
+
+        # ----------------------------
+        # Row 0 (TOP): 3 buttons centered, NOT constrained by 3 equal columns
+        # [flex][btn][gap][btn][gap][btn][flex]
+        # ----------------------------
+        top_row = ctk.CTkFrame(button_frame, fg_color="transparent")
+        top_row.grid(row=0, column=0, sticky="nsew")
+        top_row.grid_rowconfigure(0, weight=1)
+        top_row.grid_columnconfigure(0, weight=1)
+        top_row.grid_columnconfigure(1, weight=0)
+        top_row.grid_columnconfigure(2, weight=0)
+        top_row.grid_columnconfigure(3, weight=0)
+        top_row.grid_columnconfigure(4, weight=0)
+        top_row.grid_columnconfigure(5, weight=0)
+        top_row.grid_columnconfigure(6, weight=1)
+
+        top_gap = csx(55, 75)
+
         self.manual_button = ctk.CTkButton(
-            button_frame, text="Manual", command=self.on_manual, **btn_kwargs
+            top_row, text="Manual", command=self.on_manual, **btn_kwargs
         )
         self.configure_button = ctk.CTkButton(
-            button_frame, text="Configure", command=self.on_configure, **btn_kwargs
+            top_row, text="Configure", command=self.on_configure, **btn_kwargs
         )
         self.fan_delay_button = ctk.CTkButton(
-            button_frame, text="Fan Delay", command=self.on_fan_delay, **btn_kwargs
+            top_row, text="Fan Delay", command=self.on_fan_delay, **btn_kwargs
         )
 
-        pad_x = HMISizePos.sx(30)
-        pad_y = HMISizePos.sy(18)
-
-        self.manual_button.grid(row=0, column=0, padx=pad_x, pady=pad_y, sticky="nsew")
+        self.manual_button.grid(
+            row=0, column=1, padx=(pad_x, top_gap // 2), pady=pad_y, sticky="n"
+        )
         self.configure_button.grid(
-            row=0, column=1, padx=pad_x, pady=pad_y, sticky="nsew"
+            row=0, column=3, padx=(top_gap // 2, top_gap // 2), pady=pad_y, sticky="n"
         )
         self.fan_delay_button.grid(
-            row=0, column=2, padx=pad_x, pady=pad_y, sticky="nsew"
+            row=0, column=5, padx=(top_gap // 2, pad_x), pady=pad_y, sticky="n"
         )
 
-        # --- Row 1 (bottom): centered pair using a nested frame ---
+        # ----------------------------
+        # Row 1 (BOTTOM): 2 buttons centered and closer together
+        # [flex][btn][gap][btn][flex]
+        # ----------------------------
         bottom_row = ctk.CTkFrame(button_frame, fg_color="transparent")
-        bottom_row.grid(row=1, column=0, columnspan=3, sticky="nsew")
-
-        # Inner grid: [stretch][Diagnostics][gap][Exit][stretch]
+        bottom_row.grid(row=1, column=0, sticky="nsew")
         bottom_row.grid_rowconfigure(0, weight=1)
         bottom_row.grid_columnconfigure(0, weight=1)
         bottom_row.grid_columnconfigure(1, weight=0)
@@ -158,41 +183,41 @@ class HomePage_admin(ctk.CTkFrame):
             bottom_row, text="Exit Admin", command=self.on_exit_admin, **btn_kwargs
         )
 
-        mid_gap = HMISizePos.sx(70)
+        center_gap = csx(60, 80)
 
         self.diagnostics_button.grid(
-            row=0, column=1, padx=(0, mid_gap), pady=pad_y, sticky="nsew"
+            row=0, column=1, padx=(pad_x, center_gap // 2), pady=pad_y, sticky="n"
         )
         self.exit_admin_button.grid(
-            row=0, column=3, padx=(mid_gap, 0), pady=pad_y, sticky="nsew"
+            row=0, column=3, padx=(center_gap // 2, pad_x), pady=pad_y, sticky="n"
         )
 
         # ----------------------------
-        # Log textbox (keep your existing behavior; start hidden)
+        # Log textbox (start hidden)
         # ----------------------------
         self.log_textbox = ctk.CTkTextbox(
             self,
-            width=HMISizePos.sx(750),
-            height=HMISizePos.sy(120),
-            corner_radius=HMISizePos.s(10),
+            width=csx(750, 900),
+            height=csy(120, 150),
+            corner_radius=cs(10, 12),
             fg_color=COLOR_FG,
             border_width=2,
             border_color=COLOR_BLUE,
-            font=("Courier New", HMISizePos.s(14), "normal"),
+            font=("Courier New", cs(14, 16), "normal"),
             text_color=COLOR_NUMBERS,
         )
         self.log_textbox.grid(
             row=2,
             column=0,
             sticky="ew",
-            padx=HMISizePos.PADDING,
-            pady=(0, HMISizePos.PADDING),
+            padx=csx(20, 40),
+            pady=(0, csx(20, 40)),
         )
         self.log_textbox.configure(state="disabled")
         self.log_textbox.grid_remove()
 
         # Secret hotspot
-        self._add_secret_exit_hotspot()
+        self._add_secret_exit_hotspot(csx, csy)
 
     # ------------- Log helpers -------------
     def show_log(self, show: bool) -> None:
@@ -209,10 +234,6 @@ class HomePage_admin(ctk.CTkFrame):
         self.log_textbox.configure(state="normal")
         self.log_textbox.insert("1.0", full_message)
         self.log_textbox.configure(state="disabled")
-
-    def _on_serial_line(self, line: str) -> None:
-        """Called (UI-thread safe) when SerialService reads a full line."""
-        print("[HomePage]: " + line)
 
     # ------------- UI callbacks -------------
     def on_manual(self) -> None:
@@ -249,37 +270,34 @@ class HomePage_admin(ctk.CTkFrame):
     def my_task(self) -> None:
         pass
 
-    def _add_secret_exit_hotspot(self) -> None:
+    def _add_secret_exit_hotspot(self, csx, csy) -> None:
         """
         Invisible hot-corner (top-left). Double-click to exit the app.
         """
-        size_w = HMISizePos.sx(75)
-        size_h = HMISizePos.sy(75)
+        size_w = csx(75, 90)
+        size_h = csy(75, 90)
 
         self._exit_hotspot = ctk.CTkLabel(
             self,
             text="",
-            fg_color="transparent",  # invisible but clickable
+            fg_color="transparent",
             width=size_w,
             height=size_h,
         )
-        # Do NOT pass width/height to place() for CTk widgets
         self._exit_hotspot.place(relx=0, rely=0, anchor="nw")
         self._exit_hotspot.bind("<Double-Button-1>", self._on_secret_exit)
 
     def _on_secret_exit(self, _event=None) -> None:
-        """
-        Safely tear down the app. If the controller is a CTk root window,
-        destroy it; as a last resort, hard-exit the process.
-        """
         try:
-            # Prefer graceful shutdown
             if hasattr(self.controller, "on_close"):
                 try:
-                    self.controller.on_close()  # if your controller defines cleanup
+                    self.controller.on_close()
                 except Exception:
                     pass
             self.controller.destroy()
         except Exception:
-            # Fallback: force exit if something blocks destroy (rare)
             os._exit(0)
+
+    # Kept for compatibility (not currently used)
+    def _on_serial_line(self, line: str) -> None:
+        print("[HomePage]: " + line)

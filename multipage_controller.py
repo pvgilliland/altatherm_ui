@@ -898,7 +898,7 @@ if __name__ == "__main__":
 
     root = ctk.CTk()
     root.geometry("1280x800")
-
+    HMISizePos.set_resolution("1280x800")
     controller = MultiPageController(root)
     controller.show_HomePage()
 
