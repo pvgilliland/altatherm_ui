@@ -1,5 +1,6 @@
 # homepage.py
 import os
+import time
 from typing import List
 import customtkinter as ctk
 from PIL import Image, ImageDraw
@@ -25,8 +26,12 @@ class HomePage:
         self.image_path = os.path.join(assets_dir, self.IMAGE_NAME)
 
         self.hotspots: List[Hotspot] = [
+            Hotspot("logo", (560, 230, 730, 390), self.on_logo_clicked),
             Hotspot("start", (519, 577, 753, 654), self.on_start_clicked),
         ]
+
+        # Track recent logo click timestamps (seconds since epoch)
+        self._logo_click_times: list[float] = []
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -36,6 +41,40 @@ class HomePage:
         if self.controller:
             # e.g. self.controller.show_PreparePage()
             self.controller.show_SelectMealPage()
+
+    def on_logo_clicked(self):
+        """
+        Detect when the logo has been clicked 5 times within 3 seconds.
+        """
+        print("[HomePage] Logo clicked")
+
+        now = time.time()
+        window = 3.0  # seconds
+
+        # Keep only clicks within the last `window` seconds
+        self._logo_click_times = [
+            t for t in self._logo_click_times if (now - t) <= window
+        ]
+
+        # Add this click
+        self._logo_click_times.append(now)
+
+        print(
+            f"[HomePage] Logo clicks in last {window}s: {len(self._logo_click_times)}"
+        )
+
+        if len(self._logo_click_times) >= 5:
+            print("[HomePage] 5 logo clicks within 3s – SECRET COMBO DETECTED")
+
+            # Optional: reset so they have to do 5 again next time
+            self._logo_click_times.clear()
+
+            # Hook for your admin / hidden screen
+            if self.controller and hasattr(self.controller, "on_logo_easter_egg"):
+                try:
+                    self.controller.on_logo_easter_egg()
+                except Exception as e:
+                    print(f"[HomePage] on_logo_easter_egg failed: {e}")
 
 
 # ----------------------------------------------------------------------
