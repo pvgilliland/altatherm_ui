@@ -6,20 +6,20 @@
       "index": 0,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 52,
+          "duration": 2.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -28,20 +28,20 @@
       "index": 1,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 54,
+          "duration": 4.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -50,20 +50,20 @@
       "index": 2,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 56,
+          "duration": 6.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -72,20 +72,20 @@
       "index": 3,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 58,
+          "duration": 8.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -94,20 +94,20 @@
       "index": 4,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 60,
+          "duration": 10.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -116,20 +116,20 @@
       "index": 5,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 62,
+          "duration": 12.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -138,20 +138,20 @@
       "index": 6,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 64,
+          "duration": 14.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     },
@@ -160,23 +160,23 @@
       "index": 7,
       "steps": [
         {
-          "power": 0,
-          "duration": 0
+          "power": 66,
+          "duration": 16.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 0
+          "duration": 0.0
         }
       ]
     }
   ],
-  "total_time": "00:00"
+  "total_time": "00:16"
 }

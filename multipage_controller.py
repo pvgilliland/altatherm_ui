@@ -7,7 +7,7 @@ import logging
 import inspect
 import time
 
-from typing import Optional, Dict, Type, Any, Callable
+from typing import Optional, Dict, Any, Callable
 
 from image_hotspot_view import ImageHotspotView
 from homepage import HomePage
@@ -37,6 +37,8 @@ from CookingSequenceRunner import CookingSequenceManager
 from HomePage_admin import HomePage_admin
 from CircularProgressPage_admin import CircularProgressPage_admin
 from FoodReadyPage_admin import FoodReadyPage_admin
+from SequenceProgramPage import SequenceProgramPage
+from PhaseTimePowerPage import PhaseTimePowerPage
 
 # Optional admin pages (may not exist in ProjectB yet)
 from TimePowerPage import TimePowerPage
@@ -263,12 +265,14 @@ class MultiPageController:
           - (parent)
         """
 
-        # Special cases: these pages expect (controller, shared_data) and use controller as Tk master
+        # Pages that expect (controller, shared_data) where controller is also used as Tk master
         if PageClass.__name__ in (
             "SelectProgramPage",
             "TimePowerPage",
             "TimePage",
             "DiagnosticsPage",
+            "SequenceProgramPage",
+            "PhaseTimePowerPage",
         ):
             return PageClass(self._admin_master_proxy, self.shared_data)
 
@@ -301,7 +305,6 @@ class MultiPageController:
                         return PageClass(self.admin_container)
 
         # Case 2: "controller" is first arg AND page explicitly expects controller-as-master
-        # Only allow for known ProjectA pages that actually require this
         if (
             len(names) >= 1
             and names[0] == "controller"
@@ -336,7 +339,9 @@ class MultiPageController:
             pass
 
     def _build_admin_pages(self) -> None:
-        # Required admin pages
+        self.admin_pages = {}
+
+        # Required admin pages (always class-keyed)
         for PageClass in (
             HomePage_admin,
             CircularProgressPage_admin,
@@ -345,62 +350,43 @@ class MultiPageController:
             frame = self._safe_admin_construct(PageClass)
             self._register_admin_page(PageClass, frame)
 
-        # Optional admin pages (use placeholders if missing)
-        if TimePowerPage is not None:
+        # Optional admin pages (class-keyed; placeholder is registered under the class too)
+        for OptionalClass, placeholder_title in (
+            (TimePowerPage, "Time + Power (TODO)"),
+            (TimePage, "Fan Delay (TODO)"),
+            (DiagnosticsPage, "Diagnostics (TODO)"),
+            (SelectProgramPage, "Select Program (TODO)"),
+        ):
             try:
-                frame = self._safe_admin_construct(TimePowerPage)
-            except Exception:
-                frame = _AdminPlaceholderPage(
-                    self.admin_container, self, "Time + Power (TODO)"
-                )
-        else:
-            frame = _AdminPlaceholderPage(
-                self.admin_container, self, "Time + Power (TODO)"
-            )
-        self._register_admin_page("TimePowerPage", frame)
-
-        if TimePage is not None:
-            try:
-                frame = self._safe_admin_construct(TimePage)
-            except Exception:
-                frame = _AdminPlaceholderPage(
-                    self.admin_container, self, "Fan Delay (TODO)"
-                )
-        else:
-            frame = _AdminPlaceholderPage(
-                self.admin_container, self, "Fan Delay (TODO)"
-            )
-        self._register_admin_page("TimePage", frame)
-
-        if DiagnosticsPage is not None:
-            try:
-                frame = self._safe_admin_construct(DiagnosticsPage)
-            except Exception:
-                frame = _AdminPlaceholderPage(
-                    self.admin_container, self, "Diagnostics (TODO)"
-                )
-        else:
-            frame = _AdminPlaceholderPage(
-                self.admin_container, self, "Diagnostics (TODO)"
-            )
-        self._register_admin_page("DiagnosticsPage", frame)
-
-        if SelectProgramPage is not None:
-            try:
-                frame = self._safe_admin_construct(SelectProgramPage)
+                frame = self._safe_admin_construct(OptionalClass)
             except Exception as e:
-                print(f"[Admin] SelectProgramPage construct failed: {e}")
-                import traceback
-
-                traceback.print_exc()
+                print(f"[Admin] {OptionalClass.__name__} construct failed: {e}")
                 frame = _AdminPlaceholderPage(
-                    self.admin_container, self, "Select Program (TODO)"
+                    self.admin_container, self, placeholder_title
                 )
-        else:
+            self._register_admin_page(OptionalClass, frame)
+
+        # Sequence Program Editor (class-keyed)
+        try:
+            frame = self._safe_admin_construct(SequenceProgramPage)
+        except Exception:
             frame = _AdminPlaceholderPage(
-                self.admin_container, self, "Select Program (TODO)"
+                self.admin_container, self, "Sequence Program (TODO)"
             )
-        self._register_admin_page("SelectProgramPage", frame)
+        self._register_admin_page(SequenceProgramPage, frame)
+
+        # Phase Time/Power Editor (class-keyed)
+        try:
+            frame = self._safe_admin_construct(PhaseTimePowerPage)
+        except Exception as e:
+            print(f"[Admin] PhaseTimePowerPage construct failed: {e}")
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Phase Time + Power (TODO)"
+            )
+        self._register_admin_page(PhaseTimePowerPage, frame)
+
+        # Backward-compat convenience (some pages do controller.pages.get(<Class>))
+        self.pages = self.admin_pages
 
     def _show_admin_page(self, key: Any) -> None:
         frame = self.admin_pages.get(key)
@@ -542,7 +528,7 @@ class MultiPageController:
                 "[MultiPageController] show_TimePowerPage called in normal mode; ignoring."
             )
             return
-        self._show_admin_page("TimePowerPage")
+        self._show_admin_page(TimePowerPage)
 
     def show_TimePage(self) -> None:
         if not self.is_admin:
@@ -550,7 +536,7 @@ class MultiPageController:
                 "[MultiPageController] show_TimePage called in normal mode; ignoring."
             )
             return
-        self._show_admin_page("TimePage")
+        self._show_admin_page(TimePage)
 
     def show_DiagnosticsPage(self) -> None:
         if not self.is_admin:
@@ -558,7 +544,7 @@ class MultiPageController:
                 "[MultiPageController] show_DiagnosticsPage called in normal mode; ignoring."
             )
             return
-        self._show_admin_page("DiagnosticsPage")
+        self._show_admin_page(DiagnosticsPage)
 
     def show_SelectProgramPage(self) -> None:
         if not self.is_admin:
@@ -566,7 +552,7 @@ class MultiPageController:
                 "[MultiPageController] show_SelectProgramPage called in normal mode; ignoring."
             )
             return
-        self._show_admin_page("SelectProgramPage")
+        self._show_admin_page(SelectProgramPage)
 
     # Admin-enabled versions you asked for:
     def show_CircularProgressPage(
@@ -612,6 +598,58 @@ class MultiPageController:
             self._show_admin_page(FoodReadyPage_admin)
 
         self.after(2000, _show)
+
+    def show_SequenceProgramPage(self, program_number: int) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_SequenceProgramPage called in normal mode; ignoring."
+            )
+            return
+
+        page = self.admin_pages.get(SequenceProgramPage)
+        if page is None:
+            print("[MultiPageController] SequenceProgramPage not constructed")
+            return
+
+        self._show_admin_page(SequenceProgramPage)
+
+        # Call on_show(programNumber) if present
+        try:
+            if hasattr(page, "on_show"):
+                page.on_show(program_number)
+        except Exception as e:
+            print(f"[MultiPageController] SequenceProgramPage.on_show failed: {e}")
+
+    def back_to_SequenceProgramPage(self) -> None:
+        if not self.is_admin:
+            return
+        self._show_admin_page(SequenceProgramPage)
+
+    def show_PhaseTimePowerPage(self, title: str = "") -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_PhaseTimePowerPage called in normal mode; ignoring."
+            )
+            return
+
+        page = self.admin_pages.get(PhaseTimePowerPage)
+        if page is None:
+            print("[MultiPageController] PhaseTimePowerPage not constructed")
+            return
+
+        self._show_admin_page(PhaseTimePowerPage)
+
+        # Update title + load current selection into the numeric inputs
+        try:
+            if hasattr(page, "set_title"):
+                page.set_title(title)
+            elif hasattr(page, "on_show"):
+                try:
+                    page.on_show(title)
+                except TypeError:
+                    page.on_show()
+        except Exception as e:
+            print(f"[MultiPageController] PhaseTimePowerPage title/show failed: {e}")
 
     # ------------------------------------------------------------------
     # Serial commands + fan off logic (unchanged from ProjectB)

@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 
 
-__version__ = "4.0.8 ß"
+__version__ = "4.0.9 ß"
 
 
 # app_root(), a very common helper when you’re building Python applications
@@ -22,6 +22,17 @@ SETTINGS_DIR = ROOT_DIR / "settings"
 PROGRAMS_DIR = ROOT_DIR / "programs"
 
 SETTINGS_FILE = SETTINGS_DIR / "settings.alt"
+
+
+class LightOnly:
+    FG = "#DAFAFF"
+    ROW_EVEN = "#FFFFFF"
+    ROW_ODD = "#DAFAFF"
+    ROW_TEXT = "#000000"
+    PILL_BG = "#E9EDF3"
+    PILL_TEXT = "#000000"
+    DIVIDER = "#7A7A7A"
+    ACCENT = "#1F6AA5"
 
 
 class HMIColors:

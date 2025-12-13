@@ -2,7 +2,7 @@
 import customtkinter as ctk
 from dataclasses import dataclass
 from typing import Any, Dict, List
-from hmi_consts import HMIColors, HMISizePos, ASSETS_DIR, PROGRAMS_DIR
+from hmi_consts import HMIColors, HMISizePos, ASSETS_DIR, PROGRAMS_DIR, LightOnly
 from PIL import Image
 import os, json
 from SequenceStructure import SequenceCollection  # uses to_dict/from_dict/load/save
@@ -32,7 +32,6 @@ def _format_total_time(seconds_total: float) -> str:
 def _compute_total_time_from_zone_sequences(
     zone_sequences: List[Dict[str, Any]],
 ) -> str:
-    # zones run in parallel → overall = max(zone_total_seconds)
     zone_totals = []
     for z in zone_sequences or []:
         steps = z.get("steps", [])
@@ -48,14 +47,8 @@ def _compute_total_time_from_zone_sequences(
 
 
 def _new_default_program_dict(idx: int) -> Dict[str, Any]:
-    """
-    Create a default file payload using SequenceCollection's zeroed init:
-      - description
-      - zone_sequences from SequenceCollection.to_dict()
-      - total_time computed from zone data (00:00)
-    """
-    sc = SequenceCollection.Instance()  # already initialized with zeros
-    d = sc.to_dict()  # {"zone_sequences": [...]}
+    sc = SequenceCollection.Instance()
+    d = sc.to_dict()
     zone_sequences = d.get("zone_sequences", [])
     total_time = _compute_total_time_from_zone_sequences(zone_sequences)
     return {
@@ -66,13 +59,9 @@ def _new_default_program_dict(idx: int) -> Dict[str, Any]:
 
 
 def save_program_from_sequence_collection(idx: int, description: str = None) -> None:
-    """
-    Persist the CURRENT SequenceCollection singleton to program{idx}.alt.
-    Optionally update description.
-    """
     path = _program_path(idx)
     sc = SequenceCollection.Instance()
-    data = sc.to_dict()  # {"zone_sequences": [...]}
+    data = sc.to_dict()
     zone_sequences = data.get("zone_sequences", [])
     payload = {
         "description": description if description is not None else f"Program {idx}",
@@ -84,11 +73,6 @@ def save_program_from_sequence_collection(idx: int, description: str = None) -> 
 
 
 def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
-    """
-    Load program{idx}.alt. If missing/corrupt, create default.
-    Hydrates the SequenceCollection singleton from the file's zone_sequences.
-    Returns the loaded payload dict.
-    """
     path = _program_path(idx)
     payload = None
     if os.path.exists(path):
@@ -101,15 +85,12 @@ def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
             payload = None
 
     if payload is None:
-        # Create default and save
         payload = _new_default_program_dict(idx)
         with open(path, "w") as f:
             json.dump(payload, f, indent=2)
 
-    # Hydrate SequenceCollection
     SequenceCollection.from_dict({"zone_sequences": payload.get("zone_sequences", [])})
 
-    # Recompute & persist total_time in case steps changed externally
     recomputed = _compute_total_time_from_zone_sequences(
         payload.get("zone_sequences", [])
     )
@@ -124,7 +105,6 @@ def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
     return payload
 
 
-#############################################################
 # ---------- Data model ----------
 @dataclass
 class Program:
@@ -142,16 +122,15 @@ class ProgramRow(ctk.CTkFrame):
         self.program = program
         self.on_edit = on_edit
 
-        # Grid layout: # | Description | spacer | Time pill | Edit button
-        self.grid_columnconfigure(1, weight=1)  # description grows
+        self.grid_columnconfigure(1, weight=1)
 
-        # Number column
         num_lbl = ctk.CTkLabel(
             self,
             text=f"{program.index}",
             width=HMISizePos.sx(30),
             anchor="w",
             font=ctk.CTkFont(size=HMISizePos.s(14), weight="bold"),
+            text_color=LightOnly.ROW_TEXT,
         )
         num_lbl.grid(
             row=0,
@@ -161,12 +140,12 @@ class ProgramRow(ctk.CTkFrame):
             sticky="w",
         )
 
-        # Description
         desc_lbl = ctk.CTkLabel(
             self,
             text=program.description,
             anchor="w",
             font=ctk.CTkFont(size=HMISizePos.s(16)),
+            text_color=LightOnly.ROW_TEXT,
         )
         desc_lbl.grid(
             row=0,
@@ -176,13 +155,12 @@ class ProgramRow(ctk.CTkFrame):
             sticky="we",
         )
 
-        # "pill" for time (rounded label look)
         time_pill = ctk.CTkLabel(
             self,
             text=program.total_time,
             corner_radius=HMISizePos.s(18),
-            fg_color=("#EBEEF5", "#2A2E36"),
-            text_color=("black", "white"),
+            fg_color=LightOnly.PILL_BG,
+            text_color=LightOnly.PILL_TEXT,
             width=HMISizePos.sx(90),
             padx=HMISizePos.sx(16),
             pady=HMISizePos.sy(4),
@@ -202,7 +180,6 @@ class ProgramRow(ctk.CTkFrame):
             light_image=icon, dark_image=icon, size=(HMISizePos.s(24), HMISizePos.s(24))
         )
 
-        # Edit button
         edit_btn = ctk.CTkButton(
             self,
             text="",
@@ -210,6 +187,8 @@ class ProgramRow(ctk.CTkFrame):
             width=HMISizePos.sx(44),
             height=HMISizePos.sy(36),
             corner_radius=HMISizePos.s(8),
+            fg_color=LightOnly.ACCENT,
+            hover_color=LightOnly.ACCENT,
             command=self._handle_edit,
         )
         edit_btn.grid(
@@ -220,9 +199,8 @@ class ProgramRow(ctk.CTkFrame):
             sticky="e",
         )
 
-        # bottom divider line (optional)
         divider = ctk.CTkFrame(
-            self, height=HMISizePos.sy(1), fg_color=("#D7DCE5", "#3A3F4A")
+            self, height=HMISizePos.sy(1), fg_color=LightOnly.DIVIDER
         )
         divider.grid(row=1, column=0, columnspan=4, sticky="we", padx=HMISizePos.sx(6))
 
@@ -234,7 +212,7 @@ class ProgramRow(ctk.CTkFrame):
 # ---------- Main page ----------
 class SelectProgramPage(ctk.CTkFrame):
     def __init__(self, controller, shared_data, per_page: int = 6, **kwargs):
-        super().__init__(controller, fg_color=HMIColors.color_fg, **kwargs)
+        super().__init__(controller, fg_color=LightOnly.FG, **kwargs)
         self.controller = controller
         self.programs = SelectProgramPage.loadPrograms()
         self.shared_data = shared_data
@@ -242,12 +220,10 @@ class SelectProgramPage(ctk.CTkFrame):
         self.total_pages = max(1, (len(self.programs) + per_page - 1) // per_page)
         self.page_index = 0  # zero-based
 
-        # ---- Layout skeleton (all grid, no pack) ----
-        self.grid_rowconfigure(2, weight=1)  # table area expands
-        self.grid_columnconfigure(0, weight=1)  # content column
-        self.grid_columnconfigure(1, weight=0)  # right rail (fixed width)
+        self.grid_rowconfigure(2, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=0)
 
-        # Header row
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(
             row=0,
@@ -263,22 +239,30 @@ class SelectProgramPage(ctk.CTkFrame):
             header,
             text="Select Program",
             font=ctk.CTkFont(size=HMISizePos.s(22), weight="bold"),
+            text_color=LightOnly.ROW_TEXT,
         )
         title.grid(row=0, column=0, sticky="w")
 
         self.page_label = ctk.CTkLabel(
-            header, text="Page 1 of X", font=ctk.CTkFont(size=HMISizePos.s(14))
+            header,
+            text="Page 1 of X",
+            font=ctk.CTkFont(size=HMISizePos.s(14)),
+            text_color=LightOnly.ROW_TEXT,
         )
         self.page_label.grid(row=0, column=1, sticky="e")
 
-        # Column headers
         cols = ctk.CTkFrame(self, fg_color="transparent")
         cols.grid(row=1, column=0, columnspan=2, sticky="we", padx=HMISizePos.PADDING)
         cols.grid_columnconfigure(1, weight=1)
 
         boldFont = ctk.CTkFont(size=HMISizePos.s(16), weight="bold")
         col_num = ctk.CTkLabel(
-            cols, text="#", width=HMISizePos.sx(30), anchor="w", font=boldFont
+            cols,
+            text="#",
+            width=HMISizePos.sx(30),
+            anchor="w",
+            font=boldFont,
+            text_color=LightOnly.ROW_TEXT,
         )
         col_num.grid(
             row=0,
@@ -288,7 +272,13 @@ class SelectProgramPage(ctk.CTkFrame):
             sticky="w",
         )
 
-        col_desc = ctk.CTkLabel(cols, text="Description", anchor="w", font=boldFont)
+        col_desc = ctk.CTkLabel(
+            cols,
+            text="Description",
+            anchor="w",
+            font=boldFont,
+            text_color=LightOnly.ROW_TEXT,
+        )
         col_desc.grid(
             row=0,
             column=1,
@@ -298,7 +288,13 @@ class SelectProgramPage(ctk.CTkFrame):
         )
 
         PADX_RIGHT_TOTAL_TIME = HMISizePos.sx(195)
-        col_time = ctk.CTkLabel(cols, text="Total Time", anchor="e", font=boldFont)
+        col_time = ctk.CTkLabel(
+            cols,
+            text="Total Time",
+            anchor="e",
+            font=boldFont,
+            text_color=LightOnly.ROW_TEXT,
+        )
         col_time.grid(
             row=0,
             column=2,
@@ -307,9 +303,8 @@ class SelectProgramPage(ctk.CTkFrame):
             sticky="e",
         )
 
-        # underline under headers
         header_underline = ctk.CTkFrame(
-            cols, height=HMISizePos.sy(2), fg_color="#888888"
+            cols, height=HMISizePos.sy(2), fg_color=LightOnly.DIVIDER
         )
         header_underline.grid(
             row=1,
@@ -320,7 +315,6 @@ class SelectProgramPage(ctk.CTkFrame):
             padx=(0, HMISizePos.sx(120)),
         )
 
-        # Table area (left)
         self.table = ctk.CTkFrame(self, fg_color="transparent")
         self.table.grid(
             row=2,
@@ -330,7 +324,6 @@ class SelectProgramPage(ctk.CTkFrame):
             pady=(0, HMISizePos.sy(8)),
         )
 
-        # Right rail with page-up / page-down (grid only)
         rail = ctk.CTkFrame(self, width=HMISizePos.sx(72), fg_color="transparent")
         rail.grid(
             row=2,
@@ -340,7 +333,7 @@ class SelectProgramPage(ctk.CTkFrame):
             pady=(0, HMISizePos.sy(8)),
         )
         rail.grid_rowconfigure(0, weight=0)
-        rail.grid_rowconfigure(1, weight=1)  # flexible space for vertical centering
+        rail.grid_rowconfigure(1, weight=1)
         rail.grid_rowconfigure(2, weight=0)
         rail.grid_columnconfigure(0, weight=1)
 
@@ -349,23 +342,26 @@ class SelectProgramPage(ctk.CTkFrame):
             text="▲",
             width=HMISizePos.sx(56),
             height=HMISizePos.sy(56),
+            fg_color=LightOnly.ACCENT,
+            hover_color=LightOnly.ACCENT,
             command=self.page_up,
         )
         self.btn_up.grid(row=0, column=0, pady=(0, HMISizePos.sy(8)), sticky="n")
 
         self.dash_frame = ctk.CTkFrame(rail, fg_color="transparent")
-        self.dash_frame.grid(row=1, column=0, sticky="ns")  # occupies the stretch row
+        self.dash_frame.grid(row=1, column=0, sticky="ns")
 
         self.btn_down = ctk.CTkButton(
             rail,
             text="▼",
             width=HMISizePos.sx(56),
             height=HMISizePos.sy(56),
+            fg_color=LightOnly.ACCENT,
+            hover_color=LightOnly.ACCENT,
             command=self.page_down,
         )
         self.btn_down.grid(row=2, column=0, pady=(HMISizePos.sy(8), 0), sticky="s")
 
-        # Footer with Back button
         footer = ctk.CTkFrame(self, fg_color="transparent")
         footer.grid(
             row=3,
@@ -382,6 +378,8 @@ class SelectProgramPage(ctk.CTkFrame):
             text="← Back",
             width=HMISizePos.sx(90),
             height=HMISizePos.sy(50),
+            fg_color=LightOnly.ACCENT,
+            hover_color=LightOnly.ACCENT,
             command=self.on_back,
         )
         back_btn.grid(row=0, column=0, sticky="w", padx=HMISizePos.sx(10))
@@ -398,7 +396,6 @@ class SelectProgramPage(ctk.CTkFrame):
             programs.append(Program(index=idx, description=desc, total_time=total_time))
         return programs
 
-    # Public callbacks
     def on_back(self):
         self.controller.show_HomePage()
 
@@ -406,7 +403,6 @@ class SelectProgramPage(ctk.CTkFrame):
         print(f"Edit pressed: {program.index} - {program.description}")
         self.controller.show_SequenceProgramPage(program.index)
 
-    # Pagination
     def page_up(self):
         if self.page_index > 0:
             self.page_index -= 1
@@ -418,7 +414,6 @@ class SelectProgramPage(ctk.CTkFrame):
             self._render_page()
 
     def _render_page(self):
-        # Clear existing rows
         for child in self.table.winfo_children():
             child.destroy()
 
@@ -426,13 +421,8 @@ class SelectProgramPage(ctk.CTkFrame):
         end = min(len(self.programs), start + self.per_page)
         page_items = self.programs[start:end]
 
-        # Define alternating colors (light mode, dark mode)
-        row_colors = [
-            ("#E1F7FF", "#2B2F38"),  # even rows
-            ("#FFFFFF", "#23262E"),  # odd rows
-        ]
+        row_colors = [LightOnly.ROW_EVEN, LightOnly.ROW_ODD]
 
-        # Build rows
         for r, prog in enumerate(page_items):
             bg_color = row_colors[r % 2]
             row = ProgramRow(
@@ -441,21 +431,16 @@ class SelectProgramPage(ctk.CTkFrame):
             row.grid(row=r, column=0, sticky="we")
             self.table.grid_rowconfigure(r, weight=0)
 
-        # Fill remaining space so rows stay grouped at top
         self.table.grid_rowconfigure(len(page_items), weight=1)
 
-        # Update header page label
         self.page_label.configure(
             text=f"Page {self.page_index + 1} of {self.total_pages}"
         )
 
-        # Draw dash marks for page indicator (grid-only; single column, vertically centered)
         for child in self.dash_frame.winfo_children():
             child.destroy()
 
-        # Create a single-column grid in dash_frame
         self.dash_frame.grid_columnconfigure(0, weight=1)
-        # Make room to center vertically a bit (optional)
         for i in range(self.total_pages):
             self.dash_frame.grid_rowconfigure(i, weight=0)
         self.dash_frame.grid_rowconfigure(self.total_pages, weight=1)
@@ -463,7 +448,10 @@ class SelectProgramPage(ctk.CTkFrame):
         for i in range(self.total_pages):
             mark = "—" if i == self.page_index else "·"
             lbl = ctk.CTkLabel(
-                self.dash_frame, text=mark, font=ctk.CTkFont(size=HMISizePos.s(20))
+                self.dash_frame,
+                text=mark,
+                font=ctk.CTkFont(size=HMISizePos.s(20)),
+                text_color=LightOnly.ROW_TEXT,
             )
             lbl.grid(
                 row=i,
@@ -473,49 +461,15 @@ class SelectProgramPage(ctk.CTkFrame):
                 sticky="n",
             )
 
-        # Enable/disable rail buttons
         self.btn_up.configure(state="normal" if self.page_index > 0 else "disabled")
         self.btn_down.configure(
             state="normal" if self.page_index < self.total_pages - 1 else "disabled"
         )
 
     def on_show(self):
-        # Re-read programs from disk (creates missing files and recomputes total_time)
         self.programs = SelectProgramPage.loadPrograms()
-        # Recompute pagination in case anything changed
         self.total_pages = max(
             1, (len(self.programs) + self.per_page - 1) // self.per_page
         )
-        # Keep current page in range
         self.page_index = min(self.page_index, self.total_pages - 1)
-        # Re-render the visible page
         self._render_page()
-
-
-# ---------- Demo app (grid only) ----------
-def demo_app():
-    ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("blue")
-
-    root = ctk.CTk()
-    root.title("Select Program")
-    root.geometry(HMISizePos.SCREEN_RES)
-
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-
-    page = SelectProgramPage(root, shared_data=None, per_page=6)
-    page.grid(row=0, column=0, sticky="nsew")
-
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    # If you run this file directly, make sure a resolution is chosen before creating UI
-    try:
-        from hmi_consts import HMISizePos as _Sz
-
-        _Sz.set_resolution("800x480")  # or "1024x600"
-    except Exception:
-        pass
-    demo_app()
