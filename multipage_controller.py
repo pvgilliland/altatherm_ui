@@ -789,6 +789,7 @@ class MultiPageController:
             print(f"[MultiPageController] show_CookingFinishedPage failed: {e}")
 
     def start_meal_program(self, meal_index: int) -> float:
+        self._suppress_finished_page = False
         if meal_index is None:
             print("[MultiPageController] start_meal_program: meal_index is None")
             return 0.0
@@ -914,6 +915,7 @@ class MultiPageController:
                 print(f"[MultiPageController] resume_current_cook failed: {e}")
 
     def start_reheat_cycle(self) -> float:
+        self._suppress_finished_page = False
         try:
             secs = float(self.shared_data.get("reheat_seconds", 0) or 0)
         except (TypeError, ValueError):
