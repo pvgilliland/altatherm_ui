@@ -1,8 +1,7 @@
 from __future__ import annotations  # if you're on Python 3.8/3.9
 from typing import Optional, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from pages.TimePowerPage import TimePowerPage  # only for typing; no runtime import
+from TimePowerPage import TimePowerPage  # only for typing; no runtime import
 
 import time
 from typing import Optional
@@ -348,8 +347,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                     print(f"[CircularProgressPage] on_stop callback failed: {e}")
 
             try:
-                from pages.TimePowerPage import TimePowerPage
-
                 self.controller.show_FoodReadyPage(
                     auto_return_to=TimePowerPage, after_ms=10000
                 )
