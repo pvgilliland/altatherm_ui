@@ -571,7 +571,7 @@ class MultiPageController:
             return
         self._show_admin_page(SelectProgramPage)
 
-    # Admin-enabled versions you asked for:
+    # Admin-enabled versions
     def show_CircularProgressPage(
         self,
         seconds: int,
@@ -592,19 +592,21 @@ class MultiPageController:
             print("[MultiPageController] CircularProgressPage_admin not constructed")
             return
 
+        # IMPORTANT: tell the page the manual mode + power BEFORE starting
+        try:
+            if hasattr(page, "on_show"):
+                page.on_show(isManualCookMode, time_power_page, powerLevel)
+        except Exception as e:
+            print(
+                f"[MultiPageController] CircularProgressPage_admin.on_show failed: {e}"
+            )
+
         self._show_admin_page(CircularProgressPage_admin)
 
         try:
-            if hasattr(page, "start"):
-                page.start(seconds, on_stop=on_stop)
-            elif hasattr(page, "begin"):
-                page.begin(seconds, on_stop=on_stop)
-            else:
-                print(
-                    "[MultiPageController] CircularProgressPage_admin has no start/begin method"
-                )
+            page.start(seconds, on_stop=on_stop)
         except Exception as e:
-            print(f"[MultiPageController] CircularProgressPage_admin start failed: {e}")
+            print(f"[MultiPageController] CircularProgressPage_admin.start failed: {e}")
 
     def show_FoodReadyPage(self, auto_return_to=None, after_ms=3000) -> None:
         if not self.is_admin:

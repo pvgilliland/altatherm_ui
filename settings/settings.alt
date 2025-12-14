@@ -7,8 +7,8 @@
     "second": 5
   },
   "manual_cook": {
-    "minute": 0,
-    "second": 10,
+    "minute": 2,
+    "second": 17,
     "power": 50
   },
   "use_sound": false
