@@ -21,7 +21,14 @@ from cooking_paused_page import CookingPausedPage
 
 from SerialService import SerialService
 from DoorSafety import DoorSafety
-from hmi_consts import ASSETS_DIR, SETTINGS_DIR, PROGRAMS_DIR, HMISizePos, __version__
+from hmi_consts import (
+    ASSETS_DIR,
+    SETTINGS_DIR,
+    PROGRAMS_DIR,
+    HMISizePos,
+    HMIColors,
+    __version__,
+)
 from helpers import restore_saved_fan_delay_settings
 from hmi_logger import setup_logging
 import oven_state
@@ -208,17 +215,21 @@ class MultiPageController:
         # ----------------------------
         # Admin overlay container + pages
         # ----------------------------
-        self.admin_container = ctk.CTkFrame(self.root, fg_color="black")
+        self.admin_container = ctk.CTkFrame(self.root, fg_color=HMIColors.color_fg)
         self.admin_container.grid(row=0, column=0, sticky="nsew")
         self.admin_container.grid_rowconfigure(0, weight=1)
         self.admin_container.grid_columnconfigure(0, weight=1)
-        self.admin_container.grid_remove()  # hidden by default
+        self.admin_container.lower()  # hidden by default
 
         # Proxy that is a valid Tk master AND a controller
         self._admin_master_proxy = _AdminMasterProxy(self.admin_container, self)
 
         self._admin_current: Optional[ctk.CTkFrame] = None
         self.admin_pages: Dict[Any, ctk.CTkFrame] = {}
+
+        # --- Admin navigation debounce / lock ---
+        self._admin_nav_busy = False
+        self._admin_nav_pending = None
 
         # Build admin pages (real or placeholders)
         self._build_admin_pages()
@@ -332,11 +343,9 @@ class MultiPageController:
 
     def _register_admin_page(self, key: Any, frame: ctk.CTkFrame) -> None:
         self.admin_pages[key] = frame
-        try:
-            frame.grid(row=0, column=0, sticky="nsew")
-            frame.grid_remove()
-        except Exception:
-            pass
+        # Grid ONCE — never remove again
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.lower()
 
     def _build_admin_pages(self) -> None:
         self.admin_pages = {}
@@ -389,10 +398,24 @@ class MultiPageController:
         self.pages = self.admin_pages
 
     def _show_admin_page(self, key: Any) -> None:
+        # If we're already switching pages, remember the *latest* request and return.
+        if getattr(self, "_admin_nav_busy", False):
+            self._admin_nav_pending = key
+            return
+
         frame = self.admin_pages.get(key)
         if frame is None:
             print(f"[MultiPageController] Unknown admin page key: {key}")
             return
+
+        if self._admin_current is frame:
+            self._admin_nav_busy = False
+            self._admin_nav_pending = None
+            return
+
+        # Acquire lock for this navigation
+        self._admin_nav_busy = True
+        self._admin_nav_pending = None
 
         # lifecycle: hide prior
         if self._admin_current and hasattr(self._admin_current, "on_hide"):
@@ -401,31 +424,34 @@ class MultiPageController:
             except Exception:
                 pass
 
-        # hide all others
-        for f in self.admin_pages.values():
-            try:
-                f.grid_remove()
-            except Exception:
-                pass
-
-        # show target
-        try:
-            frame.grid(row=0, column=0, sticky="nsew")
-            frame.tkraise()
-        except Exception:
-            pass
-
+        # Raise immediately (fast visual response)
+        frame.tkraise()
         self._admin_current = frame
 
-        # lifecycle: show (keep your original behavior: skip on_show for CircularProgressPage_admin)
-        if hasattr(frame, "on_show"):
+        # Run on_show *after* this click handler returns to the event loop
+        def _finish_switch():
             try:
-                if key is not CircularProgressPage_admin:
-                    frame.on_show()
-            except TypeError:
-                pass
+                if hasattr(frame, "on_show") and (
+                    key is not CircularProgressPage_admin
+                ):
+                    try:
+                        frame.on_show()
+                    except TypeError:
+                        frame.on_show()
             except Exception:
                 pass
+            finally:
+                # release lock shortly after, so rapid double-clicks don’t wedge the UI
+                def _release():
+                    self._admin_nav_busy = False
+                    pending = self._admin_nav_pending
+                    self._admin_nav_pending = None
+                    if pending is not None and pending != key:
+                        self._show_admin_page(pending)
+
+                self.after(120, _release)  # tweak 80–200ms if you want
+
+        self.after(0, _finish_switch)
 
     def enter_admin_mode(self) -> None:
         if self.is_admin:
@@ -433,19 +459,20 @@ class MultiPageController:
 
         self.is_admin = True
 
-        # Hide normal UI
-        try:
-            self.view.grid_remove()
-        except Exception:
-            pass
+        # Reset admin nav debounce state (prevents "stuck" page on re-enter)
+        self._admin_nav_busy = False
+        self._admin_nav_pending = None
 
-        # Show overlay container
+        # DO NOT grid_remove the view
+        # DO NOT grid() the admin_container here
+
+        # Bring the admin layer to the front
         try:
-            self.admin_container.grid(row=0, column=0, sticky="nsew")
             self.admin_container.tkraise()
         except Exception:
             pass
 
+        # Always start at Admin Home
         self._show_admin_page(HomePage_admin)
 
     def exit_admin_mode(self) -> None:
@@ -454,22 +481,12 @@ class MultiPageController:
 
         self.is_admin = False
 
-        # Hide admin overlay container + pages
-        try:
-            if self._admin_current is not None:
-                self._admin_current.grid_remove()
-                self._admin_current = None
-        except Exception:
-            pass
+        # Reset admin nav debounce state
+        self._admin_nav_busy = False
+        self._admin_nav_pending = None
 
+        # DO NOT grid_remove/grid anything here — just raise the normal layer
         try:
-            self.admin_container.grid_remove()
-        except Exception:
-            pass
-
-        # Restore normal UI
-        try:
-            self.view.grid(row=0, column=0, sticky="nsew")
             self.view.tkraise()
         except Exception:
             pass

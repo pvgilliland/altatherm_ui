@@ -255,7 +255,6 @@ class HomePage_admin(ctk.CTkFrame):
     def on_exit_admin(self) -> None:
         play_click()
         self.controller.exit_admin_mode()
-        self.controller.show_HomePage()
 
     # ------------- Lifecycle -------------
     def on_close(self) -> None:

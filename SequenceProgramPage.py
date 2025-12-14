@@ -129,7 +129,7 @@ class StepRowWidget(ctk.CTkFrame):
             row=1,
             column=0,
             sticky="we",
-            padx=(HMISizePos.sx(18), HMISizePos.sx(18)),
+            padx=(HMISizePos.sx(4), HMISizePos.sx(4)),
         )
         self.strip.grid_columnconfigure(0, weight=1)
 
