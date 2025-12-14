@@ -23,7 +23,7 @@ class TimeAdjustControl(ctk.CTkFrame):
         on_change: Optional[Callable[[int], None]] = None,
         **kwargs,
     ):
-        super().__init__(master, fg_color="black", **kwargs)
+        super().__init__(master, fg_color="black", bg_color="black", **kwargs)
 
         self._step = step_seconds
         self._min = min_seconds
