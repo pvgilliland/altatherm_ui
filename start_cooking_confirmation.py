@@ -4,6 +4,7 @@ import os
 from typing import List
 import customtkinter as ctk
 from PIL import Image, ImageDraw
+from DoorSafety import DoorSafety
 from hotspots import Hotspot
 from hmi_consts import ASSETS_DIR, PROGRAMS_DIR
 from typing import Optional
@@ -74,6 +75,14 @@ class StartCookingConfirmation:
 
     def on_start_clicked(self):
         print("StartCookingConfirmation: Start clicked")
+
+        # ------------------------------------------------------------
+        # BLOCK START IF DOOR IS OPEN
+        # ------------------------------------------------------------
+        if DoorSafety.Instance().is_open():
+            print("[StartCookingConfirmation] Door is open → Start disabled")
+            return
+
         if not self.controller:
             return
 
@@ -132,27 +141,6 @@ class StartCookingConfirmation:
         # ------------------------------------------------------------
         # If we reach here, cook is allowed to start
         # ------------------------------------------------------------
-        self.controller.show_CookingPage()
-
-    def zon_start_clicked(self):
-        print("StartCookingConfirmation: Start clicked")
-        if not self.controller:
-            return
-
-        # If this is the Reheat meal, capture the chosen seconds
-        if self.meal_index == 5:
-            view = getattr(self.controller, "view", None)
-            if view and hasattr(view, "get_reheat_seconds"):
-                secs = view.get_reheat_seconds()
-                try:
-                    secs = int(secs)
-                except (TypeError, ValueError):
-                    secs = 0
-                secs = max(0, secs)
-                print(f"[StartCookingConfirmation] reheat_seconds = {secs}")
-                self.controller.shared_data["reheat_seconds"] = secs
-
-        # Then go to the CookingPage (it will read the override)
         self.controller.show_CookingPage()
 
     # ------------------------------------------------------------------

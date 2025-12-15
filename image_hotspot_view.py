@@ -5,11 +5,13 @@ from typing import Optional, Callable
 
 import customtkinter as ctk
 from PIL import Image, ImageTk
+from hmi_consts import ASSETS_DIR
 
 from hotspots import Hotspot  # for type hints
 from CircularProgress import CircularProgress
 from time_adjust_control import TimeAdjustControl
 from hmi_consts import HMIColors
+from DoorSafety import DoorSafety
 
 
 class ImageHotspotView(ctk.CTkFrame):
@@ -90,6 +92,36 @@ class ImageHotspotView(ctk.CTkFrame):
 
         # --- Horizontal Reheat Time control (overlay) ---
         self.reheat_time_control: Optional[TimeAdjustControl] = None
+
+        drawer_img = Image.open(f"{ASSETS_DIR}/drawer.png").convert("RGBA")
+        drawer_img = drawer_img.resize((48, 48))  # adjust size as needed
+
+        self._drawer_ctk_image = ctk.CTkImage(
+            light_image=drawer_img,
+            dark_image=drawer_img,
+            size=(48, 48),
+        )
+
+        # --- Door Open overlay (GLOBAL ie all screens) ---
+        self.door_overlay = ctk.CTkLabel(
+            self,
+            text=" Drawer Open",
+            image=self._drawer_ctk_image,
+            compound="left",  # <-- key line
+            fg_color="#000000",
+            bg_color="#000000",
+            text_color="white",
+            # corner_radius=12,
+            font=ctk.CTkFont(family="Poppins", size=28, weight="bold"),
+            width=200,
+            height=45,
+        )
+        # Top-center, above everything
+        self.door_overlay.place(relx=0.73, rely=0.96, anchor="s")
+        self.door_overlay.lower()  # hidden by default
+
+        # Listen for door open status change
+        DoorSafety.Instance().add_listener(self._on_door_change)
 
     # ------------------------------------------------------------------
     # Singleton access
@@ -302,3 +334,10 @@ class ImageHotspotView(ctk.CTkFrame):
         if self.reheat_time_control is None:
             return 0
         return self.reheat_time_control.get_seconds()
+
+    def _on_door_change(self, is_open: bool):
+        if is_open:
+            self.door_overlay.lift()
+            self.door_overlay.tkraise()  # Ensure overlay always wins z-order
+        else:
+            self.door_overlay.lower()

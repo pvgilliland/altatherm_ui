@@ -958,6 +958,10 @@ if __name__ == "__main__":
     root = ctk.CTk()
     root.geometry("1280x800")
     HMISizePos.set_resolution("1280x800")
+
+    # REQUIRED: give DoorSafety the UI root
+    DoorSafety.Instance().set_ui_root(root)
+
     controller = MultiPageController(root)
     controller.show_HomePage()
 
