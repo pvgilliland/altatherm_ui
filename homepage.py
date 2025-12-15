@@ -64,7 +64,7 @@ class HomePage:
         )
 
         if len(self._logo_click_times) >= 5:
-            print("[HomePage] 5 logo clicks within 3s – SECRET COMBO DETECTED")
+            print("[HomePage] 5 logo clicks within 3s - SECRET COMBO DETECTED")
 
             # Optional: reset so they have to do 5 again next time
             self._logo_click_times.clear()
