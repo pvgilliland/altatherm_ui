@@ -419,10 +419,16 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         print("[CircularProgressPage] Watchdog expired: no serial data")
         try:
             logger.info("Lost communication with the controller!")
+            # publish timeout independent of door-open model
+            DoorSafety.Instance().set_wdt_timed_out(True)
+
             self.stop()
-            showerror(
-                self.controller, "Error", "Lost communication with the controller!"
-            )
+            if (
+                self.controller.is_admin
+            ):  # we only show the modal error message in admin mode so we don't hang the app with a hidden modal messagebox
+                showerror(
+                    self.controller, "Error", "Lost communication with the controller!"
+                )
         except Exception as e:
             print(f"[CircularProgressPage] Failed to show error: {e}")
 

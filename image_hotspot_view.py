@@ -102,6 +102,15 @@ class ImageHotspotView(ctk.CTkFrame):
             size=(48, 48),
         )
 
+        comm_img = Image.open(f"{ASSETS_DIR}/lost_comm.png").convert("RGBA")
+        comm_img = comm_img.resize((48, 48))  # adjust size as needed
+
+        self._comm_ctk_image = ctk.CTkImage(
+            light_image=comm_img,
+            dark_image=comm_img,
+            size=(48, 48),
+        )
+
         # --- Door Open overlay (GLOBAL ie all screens) ---
         self.door_overlay = ctk.CTkLabel(
             self,
@@ -120,8 +129,27 @@ class ImageHotspotView(ctk.CTkFrame):
         self.door_overlay.place(relx=0.73, rely=0.96, anchor="s")
         self.door_overlay.lower()  # hidden by default
 
+        # --- Lost Communication overlay (GLOBAL ie all screens) ---
+        self.comm_error_overlay = ctk.CTkLabel(
+            self,
+            text=" Lost Communication!",
+            image=self._comm_ctk_image,
+            compound="left",  # <-- key line
+            fg_color="#000000",
+            bg_color="#000000",
+            text_color="white",
+            # corner_radius=12,
+            font=ctk.CTkFont(family="Poppins", size=28, weight="bold"),
+            width=200,
+            height=45,
+        )
+        # Top-center, above everything
+        self.comm_error_overlay.place(relx=0.25, rely=0.96, anchor="s")
+        self.comm_error_overlay.lower()  # hidden by default
+
         # Listen for door open status change
         DoorSafety.Instance().add_listener(self._on_door_change)
+        DoorSafety.Instance().add_wdt_listener(self._on_lost_communication)
 
     # ------------------------------------------------------------------
     # Singleton access
@@ -341,3 +369,10 @@ class ImageHotspotView(ctk.CTkFrame):
             self.door_overlay.tkraise()  # Ensure overlay always wins z-order
         else:
             self.door_overlay.lower()
+
+    def _on_lost_communication(self, lostCommunication: bool):
+        if lostCommunication:
+            self.comm_error_overlay.lift()
+            self.comm_error_overlay.tkraise()  # Ensure overlay always wins z-order
+        else:
+            self.comm_error_overlay.lower()
