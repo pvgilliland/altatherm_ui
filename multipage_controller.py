@@ -957,6 +957,7 @@ if __name__ == "__main__":
 
     root = ctk.CTk()
     root.geometry("1280x800")
+    # root.overrideredirect(True)
     HMISizePos.set_resolution("1280x800")
 
     # REQUIRED: give DoorSafety the UI root

@@ -176,129 +176,6 @@ class DiagnosticsPage(ctk.CTkFrame):
             )
             self.lblsIRValues.append(lblBoardValn)
 
-        # ---------------- Power Supply Diagnostics block (COMPACT + controls to the right) ----------------
-        ps_title = ctk.CTkLabel(
-            leftCol,
-            font=lbl_font,
-            text="Power Supply Diagnostics                                       Power Setting",
-            text_color=LBL_COLOR,
-        )
-        ps_title.grid(
-            row=9,
-            column=0,
-            columnspan=2,
-            sticky="w",
-            padx=(10, 5),
-            pady=(VERTICAL_PAD + 2, 4),
-        )
-
-        ps_frame = ctk.CTkFrame(leftCol, fg_color="transparent")
-        ps_frame.grid(
-            row=10,
-            column=0,
-            columnspan=2,
-            sticky="w",
-            padx=(10, 10),
-            pady=(0, 0),
-        )
-
-        # Columns: 0..3 = boxes, 4 = controls
-        for c in range(5):
-            ps_frame.grid_columnconfigure(c, weight=0)
-
-        # Smaller boxes so everything fits vertically
-        BOX_W = HMISizePos.sx(58)
-        BOX_H = HMISizePos.sy(26)
-        BOX_PAD_X = 12
-        BOX_PAD_Y = 10
-
-        self.psu_diag_labels: list[ctk.CTkLabel] = []
-        self.psu_diag_boxes: list[ctk.CTkFrame] = []
-
-        def _make_box(parent) -> ctk.CTkFrame:
-            box = ctk.CTkFrame(
-                parent,
-                fg_color="transparent",
-                corner_radius=6,
-                border_width=2,
-                border_color=COLOR_BLUE,
-                width=BOX_W,
-                height=BOX_H,
-            )
-            box.grid_propagate(False)
-
-            lbl = ctk.CTkLabel(
-                box,
-                text="",
-                font=ctk.CTkFont(family="Arial", size=14, weight="bold"),
-                text_color=VAL_COLOR,
-                fg_color="transparent",
-            )
-            lbl.place(relx=0.5, rely=0.5, anchor="center")
-            self.psu_diag_labels.append(lbl)
-            return box
-
-        # 2 rows x 4 columns of boxes (8 total)
-        for r in range(2):
-            for c in range(4):
-                box = _make_box(ps_frame)
-                box.grid(
-                    row=r,
-                    column=c,
-                    padx=(0 if c == 0 else BOX_PAD_X),
-                    pady=(0 if r == 0 else BOX_PAD_Y),
-                    sticky="w",
-                )
-                self.psu_diag_boxes.append(box)
-
-        self.psu_diag_labels[0].configure(text="12.3")
-
-        # Controls go to the RIGHT, spanning both rows (like your sketch)
-        controls_col = ctk.CTkFrame(ps_frame, fg_color="transparent")
-        controls_col.grid(
-            row=0,
-            column=4,
-            rowspan=2,
-            sticky="n",
-            padx=(18, 0),
-            pady=(0, 0),
-        )
-
-        # Smaller +/- input so it doesn't dominate the PSU area
-        self.psu_test_input = LabeledIntInput(
-            controls_col,
-            label="",
-            initial=55,
-            min_val=0,
-            max_val=100,
-            step=1,
-            big_step=10,
-            repeat_delay=400,
-            repeat_interval=10,
-            value_fs=22,
-            btn_glyph_fs=22,
-            value_width=56,
-            label_font=lbl_font,
-            label_padx=(0, 0),
-        )
-        self.psu_test_input.grid(row=0, column=0, sticky="w", padx=0, pady=(2, 8))
-
-        self.psu_test_btn = ctk.CTkButton(
-            controls_col,
-            text="Test",
-            command=self.on_psu_test,
-            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
-            fg_color=HMIColors.color_fg,
-            text_color=HMIColors.color_blue,
-            corner_radius=14,
-            border_width=2,
-            border_color=HMIColors.color_blue,
-            hover_color=HMIColors.color_numbers,
-            width=HMISizePos.sx(80),
-            height=HMISizePos.sy(26),
-        )
-        self.psu_test_btn.grid(row=1, column=0, sticky="w", padx=0, pady=(0, 0))
-
         # ---------------- RIGHT COLUMN (controls) ----------------
         # Row 0: Fan radios
         lblFan = ctk.CTkLabel(
@@ -374,7 +251,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             row=3, column=0, columnspan=2, sticky="w", padx=0, pady=VERTICAL_PAD
         )
 
-        # Row 4: Over Temp Power (FLOAT)
+        # Row 4: Over Temp Power (FLOAT, one decimal place typical; using 0.01 steps here)
         self.over_temp_power_input = LabeledFloatInput(
             rightCol,
             label="Over Temp Power:",
@@ -438,7 +315,7 @@ class DiagnosticsPage(ctk.CTkFrame):
         )
         radSoundNo.pack(side="left", padx=10, pady=VERTICAL_PAD)
 
-        # Row 6: Save Log button
+        # Row 6: Save Log button (moved down one row)
         save_log_btn = ctk.CTkButton(
             rightCol,
             text="Save Log",
@@ -599,33 +476,6 @@ class DiagnosticsPage(ctk.CTkFrame):
         except Exception as e:
             print(f"[DiagnosticsPage] Failed to send {cmd!r}: {e}")
 
-    def on_psu_test(self) -> None:
-        """
-        Called when the new 'Test' button is pressed.
-        This is intentionally safe: if your controller has a dedicated method,
-        it will be used; otherwise we fall back to a generic serial_send command.
-        """
-        try:
-            val = int(self.psu_test_input.get())
-        except Exception:
-            val = 0
-
-        print(f"[DiagnosticsPage] PSU Test pressed with value={val}")
-
-        # Preferred: a dedicated controller method if you add one
-        if hasattr(self.controller, "serial_psu_test"):
-            try:
-                self.controller.serial_psu_test(val)
-                return
-            except Exception as e:
-                print(
-                    f"[DiagnosticsPage] controller.serial_psu_test({val}) failed: {e}"
-                )
-
-        # Fallback: generic command you can match in firmware
-        # Change this string to whatever your PIC expects.
-        self._send(f"PSUTEST={val}")
-
     def on_back(self):
         # Merge-save: preserve other fields (fan_delay/etc.), only set diagnostics values
         try:
@@ -717,13 +567,6 @@ class DiagnosticsPage(ctk.CTkFrame):
             time.sleep(SERIAL_DELAY)
             self.controller.serial_get_IR_temp(sendorId)
 
-        # Optional: if/when you add a command to request PSU diagnostics:
-        if hasattr(self.controller, "serial_get_psu_diag"):
-            try:
-                self.controller.serial_get_psu_diag()
-            except Exception:
-                pass
-
     def on_save_log(self):
         ok, msg = save_log_file()
         if not ok and "E0001" in msg:
@@ -758,6 +601,7 @@ class DiagnosticsPage(ctk.CTkFrame):
         print(f"[DiagnosticsPage] Use Sound set to {use_sound}")
 
     def _on_serial_line(self, line: str) -> None:
+        # print("[DiagnosticsPage]: " + line)
         if line.startswith("I="):
             nums = line[2:]
             parts = nums.split(",")
@@ -800,18 +644,6 @@ class DiagnosticsPage(ctk.CTkFrame):
             )
             return
 
-        # Optional: PSU diagnostic values (8 values, comma-separated)
-        # Example firmware line:  P=12.1,12.0,5.01,3.29, ... (8 total)
-        if line.startswith("P="):
-            payload = line[2:].strip()
-            parts = [p.strip() for p in payload.split(",") if p.strip() != ""]
-            for i in range(min(len(parts), len(getattr(self, "psu_diag_labels", [])))):
-                try:
-                    self.psu_diag_labels[i].configure(text=parts[i])
-                except Exception:
-                    pass
-            return
-
 
 # ---- Standalone test harness ----
 if __name__ == "__main__":
@@ -850,10 +682,6 @@ if __name__ == "__main__":
 
         def set_use_sound(self, v: bool):
             print(f"[DummyController] set_use_sound({v})")
-
-        # Optional method if you implement it in your real controller
-        def serial_psu_test(self, val: int):
-            print(f"[Dummy] serial_psu_test({val})")
 
     app = DummyController()
     page = DiagnosticsPage(controller=app, shared_data=app.shared_data)
