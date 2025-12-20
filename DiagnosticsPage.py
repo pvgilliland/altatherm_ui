@@ -36,6 +36,10 @@ class DiagnosticsPage(ctk.CTkFrame):
         self.controller = controller
         self.shared_data = shared_data
 
+        self._psu_test_after_id: Optional[str] = None
+        self._psu_test_tick: int = 0
+        self._psu_test_active: bool = False
+
         # Serial: use the shared SerialService owned by controller (no direct pyserial here)
         self.serial: Optional["SerialService"] = getattr(
             self.controller, "serial", None
@@ -230,7 +234,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             lbl = ctk.CTkLabel(
                 box,
                 text="",
-                font=ctk.CTkFont(family="Arial", size=14, weight="bold"),
+                font=ctk.CTkFont(family="Arial", size=22, weight="bold"),
                 text_color=VAL_COLOR,
                 fg_color="transparent",
             )
@@ -250,8 +254,6 @@ class DiagnosticsPage(ctk.CTkFrame):
                     sticky="w",
                 )
                 self.psu_diag_boxes.append(box)
-
-        self.psu_diag_labels[0].configure(text="12.3")
 
         # Controls go to the RIGHT, spanning both rows (like your sketch)
         controls_col = ctk.CTkFrame(ps_frame, fg_color="transparent")
@@ -587,44 +589,37 @@ class DiagnosticsPage(ctk.CTkFrame):
         except Exception:
             return default
 
-    # ----- Actions -----
-    def _send(self, cmd: str):
+    def _load_oven_testing_power_settings(self, default: int = 80) -> int:
+        """Return oven_testing_power from settings; coerce to int; fall back safely."""
+        data = self._load_settings_dict()
         try:
-            if hasattr(self.controller, "serial_send"):
-                self.controller.serial_send(cmd)
-            else:
-                print(
-                    f"[DiagnosticsPage] serial_send not available. Would send: {cmd!r}"
-                )
-        except Exception as e:
-            print(f"[DiagnosticsPage] Failed to send {cmd!r}: {e}")
+            return int(data.get("oven_testing_power", default))
+        except Exception:
+            return default
 
     def on_psu_test(self) -> None:
-        """
-        Called when the new 'Test' button is pressed.
-        This is intentionally safe: if your controller has a dedicated method,
-        it will be used; otherwise we fall back to a generic serial_send command.
-        """
         try:
-            val = int(self.psu_test_input.get())
+            power = int(self.psu_test_input.get())
         except Exception:
-            val = 0
+            power = 0
 
-        print(f"[DiagnosticsPage] PSU Test pressed with value={val}")
+        print(f"[DiagnosticsPage] PSU Test started at power={power}")
 
-        # Preferred: a dedicated controller method if you add one
-        if hasattr(self.controller, "serial_psu_test"):
-            try:
-                self.controller.serial_psu_test(val)
-                return
-            except Exception as e:
-                print(
-                    f"[DiagnosticsPage] controller.serial_psu_test({val}) failed: {e}"
-                )
+        # If already running, restart cleanly
+        if self._psu_test_active:
+            self._stop_psu_test()
 
-        # Fallback: generic command you can match in firmware
-        # Change this string to whatever your PIC expects.
-        self._send(f"PSUTEST={val}")
+        # Start oven
+        try:
+            self.controller.serial_all_zones(power)
+        except Exception as e:
+            print(f"[DiagnosticsPage] Failed to start oven: {e}")
+            return
+
+        # Start timer
+        self._psu_test_active = True
+        self._psu_test_tick = 0
+        self._psu_test_after_id = self.after(1000, self._psu_test_timer_tick)
 
     def on_back(self):
         # Merge-save: preserve other fields (fan_delay/etc.), only set diagnostics values
@@ -637,6 +632,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             data["alarm_hysteresis"] = int(self.alarm_hysteresis_input.get())
             data["over_temp_power"] = float(self.over_temp_power_input.get())
             data["use_sound"] = self.selected_use_sound_option.get() == "Yes"
+            data["oven_testing_power"] = int(self.psu_test_input.get())
 
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)
@@ -667,6 +663,9 @@ class DiagnosticsPage(ctk.CTkFrame):
             saved_power = self._load_over_temp_power_from_settings(default=0.75)
             self.over_temp_power_input.set(saved_power)
 
+            oven_testing_power = self._load_oven_testing_power_settings(default=80)
+            self.psu_test_input.set(oven_testing_power)
+
             use_sound = load_use_sound_from_settings(default=True)
             self.selected_use_sound_option.set("Yes" if use_sound else "No")
             # Publish for global use (e.g., click wrappers)
@@ -687,9 +686,13 @@ class DiagnosticsPage(ctk.CTkFrame):
             except Exception as e:
                 print(f"[DiagnosticsPage] add_listener failed: {e}")
 
+        for i in range(8):
+            self.psu_diag_labels[i].configure(text="")
+
         self.on_refresh()
 
     def on_hide(self):
+        self._stop_psu_test()
         # Remove serial listener when leaving the page
         self._remove_serial_listener_safe()
 
@@ -800,17 +803,58 @@ class DiagnosticsPage(ctk.CTkFrame):
             )
             return
 
-        # Optional: PSU diagnostic values (8 values, comma-separated)
+        # Power Supply Diagnostics: PSU diagnostic values (8 values, comma-separated)
         # Example firmware line:  P=12.1,12.0,5.01,3.29, ... (8 total)
-        if line.startswith("P="):
+        if line.startswith("V="):
             payload = line[2:].strip()
             parts = [p.strip() for p in payload.split(",") if p.strip() != ""]
             for i in range(min(len(parts), len(getattr(self, "psu_diag_labels", [])))):
                 try:
+                    print(parts[i])
                     self.psu_diag_labels[i].configure(text=parts[i])
                 except Exception:
                     pass
             return
+
+    def _stop_psu_test(self):
+        if self._psu_test_after_id:
+            try:
+                self.after_cancel(self._psu_test_after_id)
+            except Exception:
+                pass
+
+        self._psu_test_after_id = None
+        self._psu_test_active = False
+        self._psu_test_tick = 0
+
+        try:
+            self.controller.serial_all_zones_off()
+        except Exception as e:
+            print(f"[DiagnosticsPage] Failed to stop oven: {e}")
+
+        print("[DiagnosticsPage] PSU test complete — oven stopped")
+
+    def _psu_test_timer_tick(self):
+        if not self._psu_test_active:
+            return
+
+        self._psu_test_tick += 1
+        print(f"[DiagnosticsPage] PSU test tick {self._psu_test_tick}")
+
+        # First 10 seconds: request PSU diagnostics
+        if self._psu_test_tick <= 10:
+            try:
+                if hasattr(self.controller, "serial_power_supply_diagnostics"):
+                    self.controller.serial_power_supply_diagnostics()
+            except Exception as e:
+                print(f"[DiagnosticsPage] PSU diagnostics request failed: {e}")
+
+            # schedule next second
+            self._psu_test_after_id = self.after(1000, self._psu_test_timer_tick)
+            return
+
+        # 11th tick → stop oven
+        self._stop_psu_test()
 
 
 # ---- Standalone test harness ----

@@ -11,5 +11,6 @@
     "second": 17,
     "power": 50
   },
-  "use_sound": false
+  "use_sound": false,
+  "oven_testing_power": 50
 }
