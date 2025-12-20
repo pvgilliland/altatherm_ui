@@ -94,6 +94,9 @@ class DiagnosticsPage(ctk.CTkFrame):
         leftCol.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         rightCol.grid(row=0, column=1, sticky="nsew")
 
+        leftCol.grid_columnconfigure(0, weight=1)
+        leftCol.grid_columnconfigure(1, weight=1)
+
         # common spacing/colors
         VERTICAL_PAD = self.RESOLUTION_BASED_VERT_PAD.get(HMISizePos.SCREEN_RES, 7)
         LBL_COLOR = COLOR_BLUE
@@ -184,7 +187,7 @@ class DiagnosticsPage(ctk.CTkFrame):
         ps_title = ctk.CTkLabel(
             leftCol,
             font=lbl_font,
-            text="Power Supply Diagnostics                                       Power Setting",
+            text="Power Supply Diagnostics (V)                                   Power Setting",
             text_color=LBL_COLOR,
         )
         ps_title.grid(
@@ -201,7 +204,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             row=10,
             column=0,
             columnspan=2,
-            sticky="w",
+            sticky="ew",
             padx=(10, 10),
             pady=(0, 0),
         )
@@ -209,6 +212,8 @@ class DiagnosticsPage(ctk.CTkFrame):
         # Columns: 0..3 = boxes, 4 = controls
         for c in range(5):
             ps_frame.grid_columnconfigure(c, weight=0)
+
+        ps_frame.grid_columnconfigure(4, weight=1)
 
         # Smaller boxes so everything fits vertically
         BOX_W = HMISizePos.sx(58)
@@ -261,7 +266,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             row=0,
             column=4,
             rowspan=2,
-            sticky="n",
+            sticky="nw",
             padx=(18, 0),
             pady=(0, 0),
         )
@@ -299,7 +304,40 @@ class DiagnosticsPage(ctk.CTkFrame):
             width=HMISizePos.sx(80),
             height=HMISizePos.sy(26),
         )
-        self.psu_test_btn.grid(row=1, column=0, sticky="w", padx=0, pady=(0, 0))
+        self.psu_test_btn.grid(row=1, column=0, sticky="w", padx=(0, 10))
+
+        # ---- Fan Current label + boxed value (to the right of Test button) ----
+        fan_current_frame = ctk.CTkFrame(controls_col, fg_color="transparent")
+        fan_current_frame.grid(row=1, column=1, sticky="w", padx=(6, 0))
+
+        fan_current_lbl = ctk.CTkLabel(
+            fan_current_frame,
+            text="Fan (A)",
+            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
+            text_color=COLOR_BLUE,
+        )
+        fan_current_lbl.pack(side="left", padx=(0, 6))
+
+        fan_current_box = ctk.CTkFrame(
+            fan_current_frame,
+            width=HMISizePos.sx(58),
+            height=HMISizePos.sy(26),
+            corner_radius=6,
+            border_width=2,
+            border_color=COLOR_BLUE,
+            fg_color="transparent",
+        )
+        fan_current_box.pack(side="left")
+        fan_current_box.pack_propagate(False)
+
+        self.lblFanCurrentVal = ctk.CTkLabel(
+            fan_current_box,
+            text="",
+            font=ctk.CTkFont(family="Arial", size=22, weight="bold"),
+            text_color=COLOR_NUMBERS,
+            fg_color="transparent",
+        )
+        self.lblFanCurrentVal.place(relx=0.5, rely=0.5, anchor="center")
 
         # ---------------- RIGHT COLUMN (controls) ----------------
         # Row 0: Fan radios
@@ -689,6 +727,8 @@ class DiagnosticsPage(ctk.CTkFrame):
         for i in range(8):
             self.psu_diag_labels[i].configure(text="")
 
+        self.lblFanCurrentVal.configure(text="")
+
         self.on_refresh()
 
     def on_hide(self):
@@ -804,16 +844,22 @@ class DiagnosticsPage(ctk.CTkFrame):
             return
 
         # Power Supply Diagnostics: PSU diagnostic values (8 values, comma-separated)
-        # Example firmware line:  P=12.1,12.0,5.01,3.29, ... (8 total)
+        # Example firmware line:  V=12.1,12.0,5.01,3.29, ... (8 total)
         if line.startswith("V="):
             payload = line[2:].strip()
             parts = [p.strip() for p in payload.split(",") if p.strip() != ""]
             for i in range(min(len(parts), len(getattr(self, "psu_diag_labels", [])))):
                 try:
-                    print(parts[i])
                     self.psu_diag_labels[i].configure(text=parts[i])
                 except Exception:
                     pass
+            return
+
+        # Fan Current Supply Diagnostics: PSU diagnostic values (8 values, comma-separated)
+        # Example firmware line:  P=3.2, only one value for all the fans
+        if line.startswith("P="):
+            fan_current = line[2:]  # retrun start at index (2) and go to the end (:)
+            self.lblFanCurrentVal.configure(text=fan_current)
             return
 
     def _stop_psu_test(self):

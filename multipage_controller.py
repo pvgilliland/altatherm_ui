@@ -767,7 +767,8 @@ class MultiPageController:
     # ask the controller for the power supply zone voltages
     # returns "V=nn.n,nn.n,nn.n,nn.n,nn.n,nn.n,nn.n,nn.n\r" for the 8 zones
     def serial_power_supply_diagnostics(self):
-        self.serial.send("V")
+        self.serial.send("V")  # Get power supply zone voltages
+        self.serial.send("P")  # Get Fan current
 
     # ------------------------------------------------------------------
     # Cooking sequence lifecycle (unchanged from ProjectB)
