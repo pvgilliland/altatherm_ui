@@ -306,6 +306,24 @@ class DiagnosticsPage(ctk.CTkFrame):
         )
         self.psu_test_btn.grid(row=1, column=0, sticky="w", padx=(0, 10))
 
+        # ---- Fixed value label in circled area (shows "10") ----
+        self.test_countdown_label = ctk.CTkLabel(
+            controls_col,
+            text="",
+            font=ctk.CTkFont(family="Arial", size=44, weight="bold"),
+            text_color=COLOR_NUMBERS,
+            fg_color="transparent",
+            width=HMISizePos.sx(40),
+            height=HMISizePos.sy(26),
+        )
+
+        self.test_countdown_label.grid(
+            row=0,
+            column=1,
+            sticky="w",
+            padx=(12, 0),
+        )
+
         # ---- Fan Current label + boxed value (to the right of Test button) ----
         fan_current_frame = ctk.CTkFrame(controls_col, fg_color="transparent")
         fan_current_frame.grid(row=1, column=1, sticky="w", padx=(6, 0))
@@ -641,6 +659,9 @@ class DiagnosticsPage(ctk.CTkFrame):
         except Exception:
             power = 0
 
+        self.test_countdown_label.configure(text="")
+        self.psu_test_btn.configure(text="Testing", state="disabled")
+
         print(f"[DiagnosticsPage] PSU Test started at power={power}")
 
         # If already running, restart cleanly
@@ -869,6 +890,9 @@ class DiagnosticsPage(ctk.CTkFrame):
             except Exception:
                 pass
 
+        self.psu_test_btn.configure(text="Test", state="normal")
+        self.test_countdown_label.configure(text="")
+
         self._psu_test_after_id = None
         self._psu_test_active = False
         self._psu_test_tick = 0
@@ -894,6 +918,8 @@ class DiagnosticsPage(ctk.CTkFrame):
                     self.controller.serial_power_supply_diagnostics()
             except Exception as e:
                 print(f"[DiagnosticsPage] PSU diagnostics request failed: {e}")
+
+            self.test_countdown_label.configure(text=f"{11 -  self._psu_test_tick}")
 
             # schedule next second
             self._psu_test_after_id = self.after(1000, self._psu_test_timer_tick)
