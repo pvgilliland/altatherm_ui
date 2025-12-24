@@ -462,6 +462,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
             if line.startswith("D=") and (len(line) == 3):
                 doorOpen: bool = line[2:3] == "1"
+                print(f"Door Open = {doorOpen}")
                 DoorSafety.Instance().set_open(doorOpen)
 
             if line.startswith("L=") and (len(line) == 3):
