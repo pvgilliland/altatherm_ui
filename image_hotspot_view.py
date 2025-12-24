@@ -147,9 +147,34 @@ class ImageHotspotView(ctk.CTkFrame):
         self.comm_error_overlay.place(relx=0.25, rely=0.96, anchor="s")
         self.comm_error_overlay.lower()  # hidden by default
 
+        lock_img = Image.open(f"{ASSETS_DIR}/broken_lock.png").convert("RGBA")
+        lock_img = lock_img.resize((48, 48))
+
+        self._door_lock_ctk_image = ctk.CTkImage(
+            light_image=lock_img,
+            dark_image=lock_img,
+            size=(48, 48),
+        )
+
+        self.door_lock_error_overlay = ctk.CTkLabel(
+            self,
+            text=" Door Lock Error!",
+            image=self._door_lock_ctk_image,
+            compound="left",
+            fg_color="#000000",
+            bg_color="#000000",
+            text_color="white",
+            font=ctk.CTkFont(family="Poppins", size=28, weight="bold"),
+            width=200,
+            height=45,
+        )
+        self.door_lock_error_overlay.place(relx=0.51, rely=0.96, anchor="s")
+        self.door_lock_error_overlay.lower()
+
         # Listen for door open status change
         DoorSafety.Instance().add_listener(self._on_door_change)
         DoorSafety.Instance().add_wdt_listener(self._on_lost_communication)
+        DoorSafety.Instance().add_door_lock_listener(self._on_door_lock_error)
 
     # ------------------------------------------------------------------
     # Singleton access
@@ -376,3 +401,10 @@ class ImageHotspotView(ctk.CTkFrame):
             self.comm_error_overlay.tkraise()  # Ensure overlay always wins z-order
         else:
             self.comm_error_overlay.lower()
+
+    def _on_door_lock_error(self, is_error: bool):
+        if is_error:
+            self.door_lock_error_overlay.lift()
+            self.door_lock_error_overlay.tkraise()
+        else:
+            self.door_lock_error_overlay.lower()

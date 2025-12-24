@@ -464,6 +464,10 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 doorOpen: bool = line[2:3] == "1"
                 DoorSafety.Instance().set_open(doorOpen)
 
+            if line.startswith("L=") and (len(line) == 3):
+                lockError: bool = line[2:3] == "3"
+                DoorSafety.Instance().set_door_lock_error(lockError)
+
             if line.startswith("R="):
                 if PERIODIC_THERMISTOR:
                     self._kick_watchdog()

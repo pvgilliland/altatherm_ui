@@ -8,6 +8,9 @@ DoorListener = Callable[[bool], None]  # (is_open)
 # WdtListener: a callable that takes a bool argument and returns None.
 WdtListener = Callable[[bool], None]  # (is_timed_out)
 
+# DoorLockListener: a callable that takes a bool argument and returns None.
+DoorLockListener = Callable[[bool], None]  # (is_error)
+
 
 class DoorSafety:
     """Thread-safe door model with subscribe/unsubscribe.
@@ -17,6 +20,7 @@ class DoorSafety:
     Extended:
       - WDT timeout state is tracked independently of door open state
       - separate listener set + notifications for WDT timeout changes
+      - door lock error state tracked independently (door_lock_error alarm)
     """
 
     _instance = None
@@ -44,6 +48,14 @@ class DoorSafety:
                 # --- WDT observers ---
                 cls._instance._wdt_listeners = []  # type: List[WdtListener]
                 cls._instance._wdt_listeners_lock = threading.Lock()
+
+                # --- Door lock error state (independent) ---
+                cls._instance._door_lock_error = False
+                cls._instance._door_lock_lock = threading.Lock()
+
+                # --- Door lock observers ---
+                cls._instance._door_lock_listeners = []  # type: List[DoorLockListener]
+                cls._instance._door_lock_listeners_lock = threading.Lock()
 
                 cls._instance.tk_root = None  # type: Optional[object]
 
@@ -166,6 +178,66 @@ class DoorSafety:
             for fn in listeners:
                 try:
                     fn(is_timed_out)
+                except Exception:
+                    pass
+
+        self.tk_root.after(0, _run)
+
+    # ===================== DOOR LOCK ERROR MODEL ============================
+
+    def set_door_lock_error(self, error: bool) -> None:
+        """Publish door lock error state (independent alarm)."""
+        changed = False
+        with self._door_lock_lock:
+            new_val = bool(error)
+            if new_val != self._door_lock_error:
+                self._door_lock_error = new_val
+                changed = True
+                current = self._door_lock_error
+            else:
+                current = self._door_lock_error
+
+        if changed:
+            self._notify_door_lock_listeners(current)
+
+    def is_door_lock_error(self) -> bool:
+        with self._door_lock_lock:
+            return self._door_lock_error
+
+    def add_door_lock_listener(
+        self, fn: DoorLockListener, fire_immediately: bool = True
+    ) -> None:
+        with self._door_lock_listeners_lock:
+            if fn not in self._door_lock_listeners:
+                self._door_lock_listeners.append(fn)
+
+        if fire_immediately:
+            state_now = self.is_door_lock_error()
+            if not self.tk_root or not hasattr(self.tk_root, "after"):
+                raise RuntimeError(
+                    "DoorSafety must be given a tk_root (call set_ui_root) for UI-safe callbacks"
+                )
+            self.tk_root.after(0, fn, state_now)
+
+    def remove_door_lock_listener(self, fn: DoorLockListener) -> None:
+        with self._door_lock_listeners_lock:
+            self._door_lock_listeners = [
+                f for f in self._door_lock_listeners if f is not fn
+            ]
+
+    def _notify_door_lock_listeners(self, is_error: bool) -> None:
+        if not self.tk_root or not hasattr(self.tk_root, "after"):
+            raise RuntimeError(
+                "DoorSafety must be given a tk_root (call set_ui_root) for UI-safe callbacks"
+            )
+
+        with self._door_lock_listeners_lock:
+            listeners = list(self._door_lock_listeners)
+
+        def _run():
+            for fn in listeners:
+                try:
+                    fn(is_error)
                 except Exception:
                     pass
 
