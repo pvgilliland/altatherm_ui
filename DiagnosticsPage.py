@@ -520,6 +520,21 @@ class DiagnosticsPage(ctk.CTkFrame):
             pady=VERTICAL_PAD - VERTICAL_PAD,
         )
 
+        # ---- LOCK ERROR MESSAGE (hidden by default) ----
+        self.lock_error_label = ctk.CTkLabel(
+            rightCol,
+            text="!!!! LOCK ERROR !!!!",
+            font=ctk.CTkFont(family="Arial", size=28, weight="bold"),
+            text_color="red",  # matches screenshot
+        )
+        self.lock_error_label.grid(
+            row=99,  # use a high row index to avoid collisions
+            column=0,
+            columnspan=3,
+            pady=(12, 0),
+        )
+        self.lock_error_label.grid_remove()  # start hidden
+
         # Control vars for radios
         self.selected_fan_option = ctk.StringVar(value="Off")
         self.selected_door_lock_option = ctk.StringVar(value="Unlocked")
@@ -851,6 +866,13 @@ class DiagnosticsPage(ctk.CTkFrame):
         # Door Lock
         if line.startswith("L="):
             status = line[2]
+
+            # L=3 => lock error message visible; otherwise hidden
+            if status == "3":
+                self.show_lock_error()  # or self.show_lock_error("!!!! LOCK ERROR !!!!")
+            else:
+                self.hide_lock_error()
+
             self.selected_door_lock_option.set(
                 "Locked" if status == "1" else "Unlocked"
             )
@@ -927,6 +949,15 @@ class DiagnosticsPage(ctk.CTkFrame):
 
         # 11th tick → stop oven
         self._stop_psu_test()
+
+    def show_lock_error(self, text: str = "!!!! LOCK ERROR !!!!") -> None:
+        """Show the lock error message in the diagnostics grid."""
+        self.lock_error_label.configure(text=text)
+        self.lock_error_label.grid()
+
+    def hide_lock_error(self) -> None:
+        """Hide the lock error message."""
+        self.lock_error_label.grid_remove()
 
 
 # ---- Standalone test harness ----
