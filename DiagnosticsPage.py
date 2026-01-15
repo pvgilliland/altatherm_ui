@@ -27,6 +27,7 @@ class DiagnosticsPage(ctk.CTkFrame):
         "1024x600": 7,
         "1280x800": 9,
     }
+    PSU_TEST_DURATION_SEC = 30
 
     def __init__(
         self, controller: "MultiPageController", shared_data: Dict[str, Any], **kwargs
@@ -305,6 +306,10 @@ class DiagnosticsPage(ctk.CTkFrame):
             height=HMISizePos.sy(26),
         )
         self.psu_test_btn.grid(row=1, column=0, sticky="w", padx=(0, 10))
+
+        # Cache normal PSU Test button colors (so we can restore after "Stop Test")
+        self._psu_test_btn_normal_fg = HMIColors.color_fg
+        self._psu_test_btn_normal_text = HMIColors.color_blue
 
         # ---- Fixed value label in circled area (shows "10") ----
         self.test_countdown_label = ctk.CTkLabel(
@@ -669,25 +674,54 @@ class DiagnosticsPage(ctk.CTkFrame):
             return default
 
     def on_psu_test(self) -> None:
+        """
+        Toggle behavior:
+          - If a PSU test is active, this click stops it (button acts as "Stop Test").
+          - If no test is active, this click starts it (button acts as "Test").
+        """
+        # If already running, treat button as "Stop Test"
+        if self._psu_test_active:
+            self._stop_psu_test()
+            return
+
         try:
             power = int(self.psu_test_input.get())
         except Exception:
             power = 0
 
+        # Starting a PSU test should clear any prior lock-error indication
+        try:
+            self.hide_lock_error()
+        except Exception:
+            pass
+
+        # Update UI immediately for active state
         self.test_countdown_label.configure(text="")
-        self.psu_test_btn.configure(text="Testing", state="disabled")
+        self.psu_test_btn.configure(
+            text="Stop Test",
+            state="normal",
+            fg_color=HMIColors.color_numbers,  # hover blue
+            text_color="white",
+        )
 
         print(f"[DiagnosticsPage] PSU Test started at power={power}")
-
-        # If already running, restart cleanly
-        if self._psu_test_active:
-            self._stop_psu_test()
 
         # Start oven
         try:
             self.controller.serial_all_zones(power)
         except Exception as e:
             print(f"[DiagnosticsPage] Failed to start oven: {e}")
+            # Revert UI/state if start fails
+            self._psu_test_active = False
+            self._psu_test_tick = 0
+            self._psu_test_after_id = None
+            self.psu_test_btn.configure(
+                text="Test",
+                state="normal",
+                fg_color=self._psu_test_btn_normal_fg,
+                text_color=self._psu_test_btn_normal_text,
+            )
+            self.test_countdown_label.configure(text="")
             return
 
         # Start timer
@@ -867,8 +901,11 @@ class DiagnosticsPage(ctk.CTkFrame):
         if line.startswith("L="):
             status = line[2]
 
-            # L=3 => lock error message visible; otherwise hidden
+            # L=3 => lock/door error condition
             if status == "3":
+                # If a PSU "Test" is running, immediately stop the oven (same as clicking "Stop Test")
+                if self._psu_test_active:
+                    self._stop_psu_test()
                 self.show_lock_error()  # or self.show_lock_error("!!!! LOCK ERROR !!!!")
             else:
                 self.hide_lock_error()
@@ -912,7 +949,12 @@ class DiagnosticsPage(ctk.CTkFrame):
             except Exception:
                 pass
 
-        self.psu_test_btn.configure(text="Test", state="normal")
+        self.psu_test_btn.configure(
+            text="Test",
+            state="normal",
+            fg_color=self._psu_test_btn_normal_fg,
+            text_color=self._psu_test_btn_normal_text,
+        )
         self.test_countdown_label.configure(text="")
 
         self._psu_test_after_id = None
@@ -933,21 +975,23 @@ class DiagnosticsPage(ctk.CTkFrame):
         self._psu_test_tick += 1
         print(f"[DiagnosticsPage] PSU test tick {self._psu_test_tick}")
 
-        # First 10 seconds: request PSU diagnostics
-        if self._psu_test_tick <= 10:
+        # For N seconds: request PSU diagnostics
+        if self._psu_test_tick <= self.PSU_TEST_DURATION_SEC:
             try:
                 if hasattr(self.controller, "serial_power_supply_diagnostics"):
                     self.controller.serial_power_supply_diagnostics()
             except Exception as e:
                 print(f"[DiagnosticsPage] PSU diagnostics request failed: {e}")
 
-            self.test_countdown_label.configure(text=f"{11 -  self._psu_test_tick}")
+            self.test_countdown_label.configure(
+                text=f"{self.PSU_TEST_DURATION_SEC + 1 -  self._psu_test_tick}"
+            )
 
             # schedule next second
             self._psu_test_after_id = self.after(1000, self._psu_test_timer_tick)
             return
 
-        # 11th tick → stop oven
+        # (duration + 1)th tick → stop oven (also resets button back to "Test")
         self._stop_psu_test()
 
     def show_lock_error(self, text: str = "!!!! LOCK ERROR !!!!") -> None:
@@ -1001,6 +1045,16 @@ if __name__ == "__main__":
         # Optional method if you implement it in your real controller
         def serial_psu_test(self, val: int):
             print(f"[Dummy] serial_psu_test({val})")
+
+        # Stubs used by DiagnosticsPage PSU test
+        def serial_all_zones(self, power: int):
+            print(f"[Dummy] serial_all_zones({power})")
+
+        def serial_all_zones_off(self):
+            print("[Dummy] serial_all_zones_off()")
+
+        def serial_power_supply_diagnostics(self):
+            print("[Dummy] serial_power_supply_diagnostics()")
 
     app = DummyController()
     page = DiagnosticsPage(controller=app, shared_data=app.shared_data)

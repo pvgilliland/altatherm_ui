@@ -141,6 +141,15 @@ class StartCookingConfirmation:
         # ------------------------------------------------------------
         # If we reach here, cook is allowed to start
         # ------------------------------------------------------------
+
+        # Clear any prior Door Lock error when cooking starts
+        try:
+            view = getattr(self.controller, "view", None)
+            if view and hasattr(view, "_on_door_lock_error"):
+                view._on_door_lock_error(False)
+        except Exception:
+            pass
+
         self.controller.show_CookingPage()
 
     # ------------------------------------------------------------------
