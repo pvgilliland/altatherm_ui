@@ -1,9 +1,12 @@
 import customtkinter as ctk
-from typing import TYPE_CHECKING, Dict, Any, Optional
+from typing import TYPE_CHECKING, Dict, Any
 import logging
+import json
+import os
 
-from hmi_consts import HMIColors, HMISizePos
-from ui_bits import COLOR_FG, COLOR_BLUE, COLOR_NUMBERS
+from hmi_consts import HMIColors, HMISizePos, SETTINGS_DIR
+from ui_bits import COLOR_FG, COLOR_BLUE
+from LabeledIntInput import LabeledIntInput
 
 if TYPE_CHECKING:
     from MultiPageController import MultiPageController
@@ -12,12 +15,6 @@ logger = logging.getLogger("DiagnosticsPage2")
 
 
 class DiagnosticsPage2(ctk.CTkFrame):
-    RESOLUTION_BASED_VERT_PAD = {
-        "800x480": 5,
-        "1024x600": 7,
-        "1280x800": 9,
-    }
-
     def __init__(
         self, controller: "MultiPageController", shared_data: Dict[str, Any], **kwargs
     ):
@@ -32,11 +29,6 @@ class DiagnosticsPage2(ctk.CTkFrame):
 
         btn_font = ctk.CTkFont(family="Arial", size=18, weight="bold")
         lbl_font = ctk.CTkFont(family="Arial", size=20, weight="bold")
-        val_font = ctk.CTkFont(family="Arial", size=20, weight="bold")
-
-        VERTICAL_PAD = self.RESOLUTION_BASED_VERT_PAD.get(HMISizePos.SCREEN_RES, 7)
-        LBL_COLOR = COLOR_BLUE
-        VAL_COLOR = COLOR_NUMBERS
 
         # ----- Header -----
         header = ctk.CTkFrame(self, fg_color=COLOR_FG)
@@ -44,7 +36,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="Diagnostics 2",
+            text="Cook Algorithm",
             text_color=COLOR_BLUE,
             font=("Arial", 20, "bold"),
         ).pack(pady=(4, 8))
@@ -62,105 +54,121 @@ class DiagnosticsPage2(ctk.CTkFrame):
             border_color=COLOR_BLUE,
         )
         body.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+        body.grid_columnconfigure(0, weight=1)
 
-        outer = ctk.CTkFrame(body, fg_color=COLOR_FG)
-        outer.pack(fill="both", expand=True, padx=10, pady=10)
-        outer.grid_columnconfigure(0, weight=1)
-        outer.grid_columnconfigure(1, weight=1)
-
-        leftCol = ctk.CTkFrame(outer, fg_color=COLOR_FG)
-        rightCol = ctk.CTkFrame(outer, fg_color=COLOR_FG)
-        leftCol.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        rightCol.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-
-        leftCol.grid_columnconfigure(0, weight=0)
-        leftCol.grid_columnconfigure(1, weight=1)
-        rightCol.grid_columnconfigure(0, weight=0)
-        rightCol.grid_columnconfigure(1, weight=1)
-
-        # ----- Placeholder diagnostic fields -----
-        self._value_labels = {}
-
-        left_items = [
-            ("Heater Current 1:", "N/A"),
-            ("Heater Current 2:", "N/A"),
-            ("Heater Current 3:", "N/A"),
-            ("Heater Current 4:", "N/A"),
-            ("Tray Present:", "Unknown"),
-            ("Interlock Status:", "Unknown"),
-        ]
-
-        right_items = [
-            ("Input 1:", "N/A"),
-            ("Input 2:", "N/A"),
-            ("Output 1:", "N/A"),
-            ("Output 2:", "N/A"),
-            ("Last Fault:", "None"),
-            ("System State:", "Idle"),
-        ]
-
-        for row, (label_text, initial_val) in enumerate(left_items):
-            lbl = ctk.CTkLabel(
-                leftCol,
-                text=label_text,
-                font=lbl_font,
-                text_color=LBL_COLOR,
-            )
-            lbl.grid(row=row, column=0, sticky="w", padx=(10, 5), pady=VERTICAL_PAD)
-
-            val = ctk.CTkLabel(
-                leftCol,
-                text=initial_val,
-                font=val_font,
-                text_color=VAL_COLOR,
-            )
-            val.grid(row=row, column=1, sticky="w", padx=10, pady=VERTICAL_PAD)
-            self._value_labels[label_text] = val
-
-        for row, (label_text, initial_val) in enumerate(right_items):
-            lbl = ctk.CTkLabel(
-                rightCol,
-                text=label_text,
-                font=lbl_font,
-                text_color=LBL_COLOR,
-            )
-            lbl.grid(row=row, column=0, sticky="w", padx=(10, 5), pady=VERTICAL_PAD)
-
-            val = ctk.CTkLabel(
-                rightCol,
-                text=initial_val,
-                font=val_font,
-                text_color=VAL_COLOR,
-            )
-            val.grid(row=row, column=1, sticky="w", padx=10, pady=VERTICAL_PAD)
-            self._value_labels[label_text] = val
-
-        # ----- Optional notes / placeholder area -----
-        notes_frame = ctk.CTkFrame(
+        # TSET
+        self.tset_input = LabeledIntInput(
             body,
-            fg_color="transparent",
-            border_width=2,
-            border_color=COLOR_BLUE,
-            corner_radius=8,
+            label="TSET (°C):",
+            initial=60,
+            min_val=25,
+            max_val=100,
+            step=1,
+            big_step=5,
+            repeat_delay=400,
+            repeat_interval=10,
+            value_fs=32,
+            btn_glyph_fs=32,
+            value_width=80,
+            label_font=lbl_font,
+            label_padx=(10, 5),
         )
-        notes_frame.pack(fill="x", padx=12, pady=(0, 10))
+        self.tset_input.grid(row=0, column=0, sticky="w", padx=20, pady=(20, 10))
 
-        ctk.CTkLabel(
-            notes_frame,
-            text="Additional Diagnostics / Reserved",
-            font=ctk.CTkFont(family="Arial", size=18, weight="bold"),
+        # THYS
+        self.thys_input = LabeledIntInput(
+            body,
+            label="THYS (°C):",
+            initial=25,
+            min_val=25,
+            max_val=100,
+            step=1,
+            big_step=5,
+            repeat_delay=400,
+            repeat_interval=10,
+            value_fs=32,
+            btn_glyph_fs=32,
+            value_width=80,
+            label_font=lbl_font,
+            label_padx=(10, 5),
+        )
+        self.thys_input.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 10))
+
+        # Top Zones Correction Factor
+        self.top_zones_correction_factor_input = LabeledIntInput(
+            body,
+            label="Top Zones Correction Factor (%):     ",
+            initial=0,
+            min_val=0,
+            max_val=100,
+            step=1,
+            big_step=5,
+            repeat_delay=400,
+            repeat_interval=10,
+            value_fs=32,
+            btn_glyph_fs=32,
+            value_width=80,
+            label_font=lbl_font,
+            label_padx=(10, 5),
+        )
+        self.top_zones_correction_factor_input.grid(
+            row=2, column=0, sticky="w", padx=20, pady=(0, 10)
+        )
+
+        # Bottom Zones Correction Factor
+        self.bottom_zones_correction_factor_input = LabeledIntInput(
+            body,
+            label="Bottom Zones Correction Factor (%):",
+            initial=0,
+            min_val=0,
+            max_val=100,
+            step=1,
+            big_step=5,
+            repeat_delay=400,
+            repeat_interval=10,
+            value_fs=32,
+            btn_glyph_fs=32,
+            value_width=80,
+            label_font=lbl_font,
+            label_padx=(10, 5),
+        )
+        self.bottom_zones_correction_factor_input.grid(
+            row=3, column=0, sticky="w", padx=20, pady=(0, 10)
+        )
+
+        # tC
+        self.tc_input = LabeledIntInput(
+            body,
+            label="tC (sec):",
+            initial=300,
+            min_val=10,
+            max_val=8835,
+            step=1,
+            big_step=30,
+            repeat_delay=400,
+            repeat_interval=10,
+            value_fs=32,
+            btn_glyph_fs=32,
+            value_width=100,
+            label_font=lbl_font,
+            label_padx=(10, 5),
+        )
+        self.tc_input.grid(row=4, column=0, sticky="w", padx=20, pady=(0, 10))
+
+        # Enable Cook Algorithm
+        self.enable_cook_algorithm_checkbox = ctk.CTkCheckBox(
+            body,
+            text="Enable Cook Algorithm",
+            font=lbl_font,
             text_color=COLOR_BLUE,
-        ).pack(anchor="w", padx=12, pady=(8, 4))
-
-        self.lblNotes = ctk.CTkLabel(
-            notes_frame,
-            text="Use this page for additional oven diagnostics, I/O states, currents, faults, or debug values.",
-            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
-            text_color=COLOR_NUMBERS,
-            justify="left",
-            anchor="w",
+            fg_color=COLOR_BLUE,
+            hover_color=HMIColors.color_numbers,
+            border_color=COLOR_BLUE,
+            checkmark_color=COLOR_FG,
         )
-        self.lblNotes.pack(fill="x", padx=12, pady=(0, 8))
+        self.enable_cook_algorithm_checkbox.grid(
+            row=5, column=0, sticky="w", padx=20, pady=(0, 20)
+        )
 
         # ----- Footer -----
         footer = ctk.CTkFrame(self, fg_color=COLOR_FG)
@@ -198,51 +206,211 @@ class DiagnosticsPage2(ctk.CTkFrame):
         )
         refresh_btn.pack(side="right", padx=10, pady=6)
 
+    # ----- Settings helpers -----
+    def _load_settings_dict(self) -> dict:
+        path = os.path.join(SETTINGS_DIR, "settings.alt")
+        try:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    data = json.load(f)
+                    return data if isinstance(data, dict) else {}
+        except Exception:
+            pass
+        return {}
+
+    def _clamp(self, val: int, lo: int, hi: int) -> int:
+        return max(lo, min(hi, val))
+
+    def _load_tset(self, default=60):
+        data = self._load_settings_dict()
+        try:
+            return self._clamp(int(data.get("tset", default)), 25, 100)
+        except Exception:
+            return default
+
+    def _load_thys(self, default=25):
+        data = self._load_settings_dict()
+        try:
+            return self._clamp(int(data.get("thys", default)), 25, 100)
+        except Exception:
+            return default
+
+    def _load_top_zones_correction_factor(self, default=0):
+        data = self._load_settings_dict()
+        try:
+            return self._clamp(
+                int(data.get("top_zones_correction_factor", default)), 0, 100
+            )
+        except Exception:
+            return default
+
+    def _load_bottom_zones_correction_factor(self, default=0):
+        data = self._load_settings_dict()
+        try:
+            return self._clamp(
+                int(data.get("bottom_zones_correction_factor", default)), 0, 100
+            )
+        except Exception:
+            return default
+
+    def _load_tc(self, default=300):
+        data = self._load_settings_dict()
+        try:
+            return self._clamp(int(data.get("tc", default)), 10, 8835)
+        except Exception:
+            return default
+
+    def _load_enable_cook_algorithm(self, default=False):
+        data = self._load_settings_dict()
+        try:
+            return bool(data.get("enable_cook_algorithm", default))
+        except Exception:
+            return default
+
+    def save_settings(self):
+        try:
+            os.makedirs(SETTINGS_DIR, exist_ok=True)
+            path = os.path.join(SETTINGS_DIR, "settings.alt")
+
+            data = self._load_settings_dict()
+
+            tset = self._clamp(int(self.tset_input.get()), 25, 100)
+            thys = self._clamp(int(self.thys_input.get()), 25, 100)
+            top_zones_correction_factor = self._clamp(
+                int(self.top_zones_correction_factor_input.get()), 0, 100
+            )
+            bottom_zones_correction_factor = self._clamp(
+                int(self.bottom_zones_correction_factor_input.get()), 0, 100
+            )
+            tc = self._clamp(int(self.tc_input.get()), 10, 8835)
+            enable_cook_algorithm = bool(self.enable_cook_algorithm_checkbox.get())
+
+            data["tset"] = tset
+            data["thys"] = thys
+            data["top_zones_correction_factor"] = top_zones_correction_factor
+            data["bottom_zones_correction_factor"] = bottom_zones_correction_factor
+            data["tc"] = tc
+            data["enable_cook_algorithm"] = enable_cook_algorithm
+
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+
+            # Share globally
+            self.shared_data["tset"] = tset
+            self.shared_data["thys"] = thys
+            self.shared_data["top_zones_correction_factor"] = (
+                top_zones_correction_factor
+            )
+            self.shared_data["bottom_zones_correction_factor"] = (
+                bottom_zones_correction_factor
+            )
+            self.shared_data["tc"] = tc
+            self.shared_data["enable_cook_algorithm"] = enable_cook_algorithm
+
+            print(
+                "[DiagnosticsPage2] Saved "
+                f"TSET={tset}, "
+                f"THYS={thys}, "
+                f"Top Zones Correction Factor={top_zones_correction_factor}, "
+                f"Bottom Zones Correction Factor={bottom_zones_correction_factor}, "
+                f"tC={tc}, "
+                f"Enable Cook Algorithm={enable_cook_algorithm}"
+            )
+
+        except Exception as e:
+            print(f"[DiagnosticsPage2] Failed to save settings: {e}")
+
     def on_show(self):
         print("[DiagnosticsPage2] on_show")
-        self.on_refresh()
+        try:
+            tset = self._load_tset()
+            thys = self._load_thys()
+            top_zones_correction_factor = self._load_top_zones_correction_factor()
+            bottom_zones_correction_factor = self._load_bottom_zones_correction_factor()
+            tc = self._load_tc()
+            enable_cook_algorithm = self._load_enable_cook_algorithm()
+
+            self.tset_input.set(tset)
+            self.thys_input.set(thys)
+            self.top_zones_correction_factor_input.set(top_zones_correction_factor)
+            self.bottom_zones_correction_factor_input.set(
+                bottom_zones_correction_factor
+            )
+            self.tc_input.set(tc)
+
+            if enable_cook_algorithm:
+                self.enable_cook_algorithm_checkbox.select()
+            else:
+                self.enable_cook_algorithm_checkbox.deselect()
+
+            # Share immediately
+            self.shared_data["tset"] = tset
+            self.shared_data["thys"] = thys
+            self.shared_data["top_zones_correction_factor"] = (
+                top_zones_correction_factor
+            )
+            self.shared_data["bottom_zones_correction_factor"] = (
+                bottom_zones_correction_factor
+            )
+            self.shared_data["tc"] = tc
+            self.shared_data["enable_cook_algorithm"] = enable_cook_algorithm
+
+        except Exception as e:
+            print(f"[DiagnosticsPage2] Failed to load settings: {e}")
 
     def on_hide(self):
-        print("[DiagnosticsPage2] on_hide")
+        self.save_settings()
 
     def on_back(self):
+        self.save_settings()
+
         if hasattr(self.controller, "show_DiagnosticsPage"):
             self.controller.show_DiagnosticsPage()
         else:
             print("[DiagnosticsPage2] Controller missing show_DiagnosticsPage()")
 
     def on_refresh(self):
-        print("[DiagnosticsPage2] Refreshed")
+        self.save_settings()
+        print(
+            f"[DiagnosticsPage2] Refreshed, "
+            f"TSET={self.shared_data.get('tset')}, "
+            f"THYS={self.shared_data.get('thys')}, "
+            f"Top Zones Correction Factor={self.shared_data.get('top_zones_correction_factor')}, "
+            f"Bottom Zones Correction Factor={self.shared_data.get('bottom_zones_correction_factor')}, "
+            f"tC={self.shared_data.get('tc')}, "
+            f"Enable Cook Algorithm={self.shared_data.get('enable_cook_algorithm')}"
+        )
 
-        # Placeholder values. Replace with real controller/serial values as needed.
-        self._value_labels["Heater Current 1:"].configure(text="0.0 A")
-        self._value_labels["Heater Current 2:"].configure(text="0.0 A")
-        self._value_labels["Heater Current 3:"].configure(text="0.0 A")
-        self._value_labels["Heater Current 4:"].configure(text="0.0 A")
-        self._value_labels["Tray Present:"].configure(text="No")
-        self._value_labels["Interlock Status:"].configure(text="OK")
-        self._value_labels["Input 1:"].configure(text="Off")
-        self._value_labels["Input 2:"].configure(text="Off")
-        self._value_labels["Output 1:"].configure(text="Off")
-        self._value_labels["Output 2:"].configure(text="Off")
-        self._value_labels["Last Fault:"].configure(text="None")
-        self._value_labels["System State:"].configure(text="Idle")
+    # Optional helpers
+    def get_tset(self):
+        return int(self.shared_data.get("tset", self._load_tset()))
 
+    def get_thys(self):
+        return int(self.shared_data.get("thys", self._load_thys()))
 
-# ---- Standalone test harness ----
-if __name__ == "__main__":
+    def get_top_zones_correction_factor(self):
+        return int(
+            self.shared_data.get(
+                "top_zones_correction_factor",
+                self._load_top_zones_correction_factor(),
+            )
+        )
 
-    class DummyController(ctk.CTk):
-        def __init__(self):
-            super().__init__()
-            self.title("DiagnosticsPage2 Test")
-            self.geometry("1024x600")
-            self.shared_data = {}
+    def get_bottom_zones_correction_factor(self):
+        return int(
+            self.shared_data.get(
+                "bottom_zones_correction_factor",
+                self._load_bottom_zones_correction_factor(),
+            )
+        )
 
-        def show_DiagnosticsPage(self):
-            print("[DummyController] Returning to DiagnosticsPage")
+    def get_tc(self):
+        return int(self.shared_data.get("tc", self._load_tc()))
 
-    app = DummyController()
-    page = DiagnosticsPage2(controller=app, shared_data=app.shared_data)
-    page.pack(fill="both", expand=True)
-    app.mainloop()
+    def get_enable_cook_algorithm(self):
+        return bool(
+            self.shared_data.get(
+                "enable_cook_algorithm",
+                self._load_enable_cook_algorithm(),
+            )
+        )

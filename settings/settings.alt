@@ -12,5 +12,11 @@
     "power": 50
   },
   "use_sound": false,
-  "oven_testing_power": 50
+  "oven_testing_power": 50,
+  "tset": 77,
+  "thys": 78,
+  "top_zones_correction_factor": 98,
+  "bottom_zones_correction_factor": 99,
+  "tc": 317,
+  "enable_cook_algorithm": true
 }
