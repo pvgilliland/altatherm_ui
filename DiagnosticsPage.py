@@ -612,6 +612,22 @@ class DiagnosticsPage(ctk.CTkFrame):
         )
         back_btn.pack(side="left", padx=10, pady=6)
 
+        self.diag2_btn = ctk.CTkButton(
+            footer,
+            text="Diag 2 →",
+            command=self.on_open_diag2,
+            font=btn_font,
+            fg_color=HMIColors.color_fg,
+            text_color=HMIColors.color_blue,
+            corner_radius=20,
+            border_width=2,
+            border_color=HMIColors.color_blue,
+            hover_color=HMIColors.color_numbers,
+            width=HMISizePos.sx(110),
+            height=HMISizePos.BTN_HEIGHT,
+        )
+        self.diag2_btn.pack(side="right", padx=10, pady=6)
+
         refresh_btn = ctk.CTkButton(
             footer,
             text="Refresh",
@@ -673,6 +689,40 @@ class DiagnosticsPage(ctk.CTkFrame):
         except Exception:
             return default
 
+    def save_settings(self):
+        """Merge-save diagnostics settings so page-to-page navigation preserves values."""
+        try:
+            os.makedirs(SETTINGS_DIR, exist_ok=True)
+            path = os.path.join(SETTINGS_DIR, "settings.alt")
+
+            data = self._load_settings_dict()
+            data["alarm_level"] = int(self.alarm_threshold_input.get())
+            data["alarm_hysteresis"] = int(self.alarm_hysteresis_input.get())
+            data["over_temp_power"] = float(self.over_temp_power_input.get())
+            data["use_sound"] = self.selected_use_sound_option.get() == "Yes"
+            data["oven_testing_power"] = int(self.psu_test_input.get())
+
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+
+            print(
+                f"[DiagnosticsPage] Saved Alarm Level={data['alarm_level']}, "
+                f"Alarm Hysteresis={data['alarm_hysteresis']}, "
+                f"Over Temp Power={data['over_temp_power']}, "
+                f"Use Sound={data['use_sound']} to {path}"
+            )
+        except Exception as e:
+            print(f"[DiagnosticsPage] Failed to save settings: {e}")
+
+    def on_open_diag2(self):
+        """Save current settings and navigate to second diagnostics page."""
+        self.save_settings()
+
+        if hasattr(self.controller, "show_DiagnosticsPage2"):
+            self.controller.show_DiagnosticsPage2()
+        else:
+            print("[DiagnosticsPage] Controller missing show_DiagnosticsPage2()")
+
     def on_psu_test(self) -> None:
         """
         Toggle behavior:
@@ -730,29 +780,7 @@ class DiagnosticsPage(ctk.CTkFrame):
         self._psu_test_after_id = self.after(1000, self._psu_test_timer_tick)
 
     def on_back(self):
-        # Merge-save: preserve other fields (fan_delay/etc.), only set diagnostics values
-        try:
-            os.makedirs(SETTINGS_DIR, exist_ok=True)
-            path = os.path.join(SETTINGS_DIR, "settings.alt")
-
-            data = self._load_settings_dict()
-            data["alarm_level"] = int(self.alarm_threshold_input.get())
-            data["alarm_hysteresis"] = int(self.alarm_hysteresis_input.get())
-            data["over_temp_power"] = float(self.over_temp_power_input.get())
-            data["use_sound"] = self.selected_use_sound_option.get() == "Yes"
-            data["oven_testing_power"] = int(self.psu_test_input.get())
-
-            with open(path, "w") as f:
-                json.dump(data, f, indent=2)
-
-            print(
-                f"[DiagnosticsPage] Saved Alarm Level={data['alarm_level']}, "
-                f"Alarm Hysteresis={data['alarm_hysteresis']}, "
-                f"Over Temp Power={data['over_temp_power']}, "
-                f"Use Sound={data['use_sound']} to {path}"
-            )
-        except Exception as e:
-            print(f"[DiagnosticsPage] Failed to save settings: {e}")
+        self.save_settings()
 
         if hasattr(self.controller, "show_HomePage"):
             self.controller.show_HomePage()
@@ -1019,6 +1047,9 @@ if __name__ == "__main__":
 
         def show_HomePage(self):
             print("[DummyController] Going back to HomePage")
+
+        def show_DiagnosticsPage2(self):
+            print("[DummyController] Going to DiagnosticsPage2")
 
         # Stubs to avoid attribute errors in on_refresh()
         def serial_get_versions(self):

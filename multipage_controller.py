@@ -52,6 +52,7 @@ from TimePowerPage import TimePowerPage
 from TimePage import TimePage
 from SelectProgramPage import SelectProgramPage
 from DiagnosticsPage import DiagnosticsPage
+from DiagnosticsPage2 import DiagnosticsPage2
 
 logger = logging.getLogger("MultiPageController")
 
@@ -282,6 +283,7 @@ class MultiPageController:
             "TimePowerPage",
             "TimePage",
             "DiagnosticsPage",
+            "DiagnosticsPage2",
             "SequenceProgramPage",
             "PhaseTimePowerPage",
         ):
@@ -364,6 +366,7 @@ class MultiPageController:
             (TimePowerPage, "Time + Power (TODO)"),
             (TimePage, "Fan Delay (TODO)"),
             (DiagnosticsPage, "Diagnostics (TODO)"),
+            (DiagnosticsPage2, "Diagnostics 2 (TODO)"),
             (SelectProgramPage, "Select Program (TODO)"),
         ):
             try:
@@ -562,6 +565,14 @@ class MultiPageController:
             )
             return
         self._show_admin_page(DiagnosticsPage)
+
+    def show_DiagnosticsPage2(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_DiagnosticsPage2 called in normal mode; ignoring."
+            )
+            return
+        self._show_admin_page(DiagnosticsPage2)
 
     def show_SelectProgramPage(self) -> None:
         if not self.is_admin:
