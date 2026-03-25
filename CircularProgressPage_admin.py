@@ -17,6 +17,7 @@ import os, json  # NEW
 from CircularProgress_admin import CircularProgress_admin
 from SerialService import SerialService  # uses your CTkCanvas-based class
 from MessageBoxPage import showerror
+from Settings import Settings
 import oven_state
 import logging
 
@@ -208,6 +209,16 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self._load_alarm_levels_from_settings()
         )
         self._over_temp_power = self._load_over_temp_power_from_settings(default=0.75)
+
+        # Cookpack temperature control
+        s = Settings.Instance()
+        s.load()
+        self.tset = s.tset
+        self.thys = s.thys
+        self.top_zones_correction_factor = s.top_zones_correction_factor
+        self.bottom_zones_correction_factor = s.bottom_zones_correction_factor
+        self.tc = s.tc
+        self.enable_cook_algorithm = s.enable_cook_algorithm
 
         # Make sure the over temp icon is initially hidden
         self.set_overtemp_visible(False)

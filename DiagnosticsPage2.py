@@ -7,6 +7,7 @@ import os
 from hmi_consts import HMIColors, HMISizePos, SETTINGS_DIR
 from ui_bits import COLOR_FG, COLOR_BLUE
 from LabeledIntInput import LabeledIntInput
+from Settings import Settings
 
 if TYPE_CHECKING:
     from MultiPageController import MultiPageController
@@ -207,115 +208,36 @@ class DiagnosticsPage2(ctk.CTkFrame):
         refresh_btn.pack(side="right", padx=10, pady=6)
 
     # ----- Settings helpers -----
-    def _load_settings_dict(self) -> dict:
-        path = os.path.join(SETTINGS_DIR, "settings.alt")
-        try:
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    data = json.load(f)
-                    return data if isinstance(data, dict) else {}
-        except Exception:
-            pass
-        return {}
-
     def _clamp(self, val: int, lo: int, hi: int) -> int:
         return max(lo, min(hi, val))
 
-    def _load_tset(self, default=60):
-        data = self._load_settings_dict()
-        try:
-            return self._clamp(int(data.get("tset", default)), 25, 100)
-        except Exception:
-            return default
-
-    def _load_thys(self, default=25):
-        data = self._load_settings_dict()
-        try:
-            return self._clamp(int(data.get("thys", default)), 25, 100)
-        except Exception:
-            return default
-
-    def _load_top_zones_correction_factor(self, default=0):
-        data = self._load_settings_dict()
-        try:
-            return self._clamp(
-                int(data.get("top_zones_correction_factor", default)), 0, 100
-            )
-        except Exception:
-            return default
-
-    def _load_bottom_zones_correction_factor(self, default=0):
-        data = self._load_settings_dict()
-        try:
-            return self._clamp(
-                int(data.get("bottom_zones_correction_factor", default)), 0, 100
-            )
-        except Exception:
-            return default
-
-    def _load_tc(self, default=300):
-        data = self._load_settings_dict()
-        try:
-            return self._clamp(int(data.get("tc", default)), 10, 8835)
-        except Exception:
-            return default
-
-    def _load_enable_cook_algorithm(self, default=False):
-        data = self._load_settings_dict()
-        try:
-            return bool(data.get("enable_cook_algorithm", default))
-        except Exception:
-            return default
-
     def save_settings(self):
         try:
-            os.makedirs(SETTINGS_DIR, exist_ok=True)
-            path = os.path.join(SETTINGS_DIR, "settings.alt")
+            s = Settings.Instance()
 
-            data = self._load_settings_dict()
-
-            tset = self._clamp(int(self.tset_input.get()), 25, 100)
-            thys = self._clamp(int(self.thys_input.get()), 25, 100)
-            top_zones_correction_factor = self._clamp(
+            s.tset = self._clamp(int(self.tset_input.get()), 25, 100)
+            s.thys = self._clamp(int(self.thys_input.get()), 25, 100)
+            s.top_zones_correction_factor = self._clamp(
                 int(self.top_zones_correction_factor_input.get()), 0, 100
             )
-            bottom_zones_correction_factor = self._clamp(
+            s.bottom_zones_correction_factor = self._clamp(
                 int(self.bottom_zones_correction_factor_input.get()), 0, 100
             )
-            tc = self._clamp(int(self.tc_input.get()), 10, 8835)
-            enable_cook_algorithm = bool(self.enable_cook_algorithm_checkbox.get())
+            s.tc = self._clamp(int(self.tc_input.get()), 10, 8835)
+            s.enable_cook_algorithm = bool(self.enable_cook_algorithm_checkbox.get())
 
-            data["tset"] = tset
-            data["thys"] = thys
-            data["top_zones_correction_factor"] = top_zones_correction_factor
-            data["bottom_zones_correction_factor"] = bottom_zones_correction_factor
-            data["tc"] = tc
-            data["enable_cook_algorithm"] = enable_cook_algorithm
+            s.save()
 
-            with open(path, "w") as f:
-                json.dump(data, f, indent=2)
-
-            # Share globally
-            self.shared_data["tset"] = tset
-            self.shared_data["thys"] = thys
+            self.shared_data["tset"] = s.tset
+            self.shared_data["thys"] = s.thys
             self.shared_data["top_zones_correction_factor"] = (
-                top_zones_correction_factor
+                s.top_zones_correction_factor
             )
             self.shared_data["bottom_zones_correction_factor"] = (
-                bottom_zones_correction_factor
+                s.bottom_zones_correction_factor
             )
-            self.shared_data["tc"] = tc
-            self.shared_data["enable_cook_algorithm"] = enable_cook_algorithm
-
-            print(
-                "[DiagnosticsPage2] Saved "
-                f"TSET={tset}, "
-                f"THYS={thys}, "
-                f"Top Zones Correction Factor={top_zones_correction_factor}, "
-                f"Bottom Zones Correction Factor={bottom_zones_correction_factor}, "
-                f"tC={tc}, "
-                f"Enable Cook Algorithm={enable_cook_algorithm}"
-            )
+            self.shared_data["tc"] = s.tc
+            self.shared_data["enable_cook_algorithm"] = s.enable_cook_algorithm
 
         except Exception as e:
             print(f"[DiagnosticsPage2] Failed to save settings: {e}")
@@ -323,37 +245,34 @@ class DiagnosticsPage2(ctk.CTkFrame):
     def on_show(self):
         print("[DiagnosticsPage2] on_show")
         try:
-            tset = self._load_tset()
-            thys = self._load_thys()
-            top_zones_correction_factor = self._load_top_zones_correction_factor()
-            bottom_zones_correction_factor = self._load_bottom_zones_correction_factor()
-            tc = self._load_tc()
-            enable_cook_algorithm = self._load_enable_cook_algorithm()
+            s = Settings.Instance()
+            s.load()
 
-            self.tset_input.set(tset)
-            self.thys_input.set(thys)
-            self.top_zones_correction_factor_input.set(top_zones_correction_factor)
-            self.bottom_zones_correction_factor_input.set(
-                bottom_zones_correction_factor
+            self.tset_input.set(int(s.tset))
+            self.thys_input.set(int(s.thys))
+            self.top_zones_correction_factor_input.set(
+                int(s.top_zones_correction_factor)
             )
-            self.tc_input.set(tc)
+            self.bottom_zones_correction_factor_input.set(
+                int(s.bottom_zones_correction_factor)
+            )
+            self.tc_input.set(int(s.tc))
 
-            if enable_cook_algorithm:
+            if s.enable_cook_algorithm:
                 self.enable_cook_algorithm_checkbox.select()
             else:
                 self.enable_cook_algorithm_checkbox.deselect()
 
-            # Share immediately
-            self.shared_data["tset"] = tset
-            self.shared_data["thys"] = thys
+            self.shared_data["tset"] = s.tset
+            self.shared_data["thys"] = s.thys
             self.shared_data["top_zones_correction_factor"] = (
-                top_zones_correction_factor
+                s.top_zones_correction_factor
             )
             self.shared_data["bottom_zones_correction_factor"] = (
-                bottom_zones_correction_factor
+                s.bottom_zones_correction_factor
             )
-            self.shared_data["tc"] = tc
-            self.shared_data["enable_cook_algorithm"] = enable_cook_algorithm
+            self.shared_data["tc"] = s.tc
+            self.shared_data["enable_cook_algorithm"] = s.enable_cook_algorithm
 
         except Exception as e:
             print(f"[DiagnosticsPage2] Failed to load settings: {e}")

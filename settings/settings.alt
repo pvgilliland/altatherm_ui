@@ -1,22 +1,18 @@
 {
-  "alarm_level": 999,
+  "tset": 25,
+  "thys": 26,
+  "top_zones_correction_factor": 27,
+  "bottom_zones_correction_factor": 28,
+  "tc": 29,
+  "enable_cook_algorithm": true,
+  "alarm_level": 1500,
   "alarm_hysteresis": 200,
   "over_temp_power": 0.75,
-  "fan_delay": {
-    "minute": 0,
-    "second": 5
-  },
+  "use_sound": true,
+  "oven_testing_power": 80,
   "manual_cook": {
-    "minute": 2,
-    "second": 17,
+    "minute": 4,
+    "second": 10,
     "power": 50
-  },
-  "use_sound": false,
-  "oven_testing_power": 50,
-  "tset": 77,
-  "thys": 78,
-  "top_zones_correction_factor": 98,
-  "bottom_zones_correction_factor": 99,
-  "tc": 317,
-  "enable_cook_algorithm": true
+  }
 }
