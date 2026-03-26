@@ -458,11 +458,30 @@ class DiagnosticsPage(ctk.CTkFrame):
             row=4, column=0, columnspan=2, sticky="w", padx=0, pady=VERTICAL_PAD
         )
 
-        # Row 5: Use Sound radios (Yes / No)
+        # Row 5: Enable Array Temp Control checkbox
+        self.enable_array_temp_control_var = ctk.BooleanVar(value=False)
+
+        self.enable_array_temp_control_chk = ctk.CTkCheckBox(
+            rightCol,
+            text="Enable Array Temp Control",
+            variable=self.enable_array_temp_control_var,
+            font=lbl_font,
+            text_color=VAL_COLOR,
+            border_color=VAL_COLOR,
+            fg_color=COLOR_BLUE,
+            hover_color=COLOR_NUMBERS,
+            checkbox_width=28,
+            checkbox_height=28,
+        )
+        self.enable_array_temp_control_chk.grid(
+            row=5, column=0, columnspan=2, sticky="w", padx=(10, 5), pady=VERTICAL_PAD
+        )
+
+        # Row 6: Use Sound radios (Yes / No)
         lblUseSound = ctk.CTkLabel(
             rightCol, font=lbl_font, text="Use Sound:", text_color=LBL_COLOR
         )
-        lblUseSound.grid(row=5, column=0, sticky="w", padx=(10, 5), pady=VERTICAL_PAD)
+        lblUseSound.grid(row=6, column=0, sticky="w", padx=(10, 5), pady=VERTICAL_PAD)
 
         use_sound_radio_frame = ctk.CTkFrame(
             rightCol,
@@ -472,7 +491,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             corner_radius=6,
         )
         use_sound_radio_frame.grid(
-            row=5, column=1, sticky="ew", padx=10, pady=VERTICAL_PAD
+            row=6, column=1, sticky="ew", padx=10, pady=VERTICAL_PAD
         )
 
         self.selected_use_sound_option = ctk.StringVar(value="Yes")
@@ -501,7 +520,7 @@ class DiagnosticsPage(ctk.CTkFrame):
         )
         radSoundNo.pack(side="left", padx=10, pady=VERTICAL_PAD)
 
-        # Row 6: Save Log button
+        # Row 7: Save Log button
         save_log_btn = ctk.CTkButton(
             rightCol,
             text="Save Log",
@@ -517,7 +536,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             height=50,
         )
         save_log_btn.grid(
-            row=6,
+            row=7,
             column=0,
             columnspan=2,
             sticky="w",
@@ -681,6 +700,16 @@ class DiagnosticsPage(ctk.CTkFrame):
         except Exception:
             return default
 
+    def _load_enable_array_temp_control_from_settings(
+        self, default: bool = False
+    ) -> bool:
+        """Return enable_array_temp_control from settings; coerce to bool; fall back safely."""
+        data = self._load_settings_dict()
+        try:
+            return bool(data.get("enable_array_temp_control", default))
+        except Exception:
+            return default
+
     def _load_oven_testing_power_settings(self, default: int = 80) -> int:
         """Return oven_testing_power from settings; coerce to int; fall back safely."""
         data = self._load_settings_dict()
@@ -699,6 +728,7 @@ class DiagnosticsPage(ctk.CTkFrame):
             data["alarm_level"] = int(self.alarm_threshold_input.get())
             data["alarm_hysteresis"] = int(self.alarm_hysteresis_input.get())
             data["over_temp_power"] = float(self.over_temp_power_input.get())
+            data["enable_array_temp_control"] = self.enable_array_temp_control_var.get()
             data["use_sound"] = self.selected_use_sound_option.get() == "Yes"
             data["oven_testing_power"] = int(self.psu_test_input.get())
 
@@ -709,6 +739,7 @@ class DiagnosticsPage(ctk.CTkFrame):
                 f"[DiagnosticsPage] Saved Alarm Level={data['alarm_level']}, "
                 f"Alarm Hysteresis={data['alarm_hysteresis']}, "
                 f"Over Temp Power={data['over_temp_power']}, "
+                f"Enable Array Temp Control={data['enable_array_temp_control']}, "
                 f"Use Sound={data['use_sound']} to {path}"
             )
         except Exception as e:
@@ -799,6 +830,11 @@ class DiagnosticsPage(ctk.CTkFrame):
             saved_power = self._load_over_temp_power_from_settings(default=0.75)
             self.over_temp_power_input.set(saved_power)
 
+            saved_enable_array_temp_control = (
+                self._load_enable_array_temp_control_from_settings(default=False)
+            )
+            self.enable_array_temp_control_var.set(saved_enable_array_temp_control)
+
             oven_testing_power = self._load_oven_testing_power_settings(default=80)
             self.psu_test_input.set(oven_testing_power)
 
@@ -806,6 +842,10 @@ class DiagnosticsPage(ctk.CTkFrame):
             self.selected_use_sound_option.set("Yes" if use_sound else "No")
             # Publish for global use (e.g., click wrappers)
             self.shared_data["use_sound"] = use_sound
+            # Publish array temp control state too
+            self.shared_data["enable_array_temp_control"] = (
+                saved_enable_array_temp_control
+            )
             # Optional: notify controller if it exposes a setter
             if hasattr(self.controller, "set_use_sound"):
                 try:

@@ -58,6 +58,8 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._isManualCookMode: bool = False
         self._powerLevel: int | None = None
         self._over_temp_power: float = 0.75  # fraction 0..1 used for throttling
+        self._enable_array_temp_control: bool = False
+        self.enable_cook_algorithm: bool = False
 
         # --- NEW: completely independent 1-second periodic timer ------------
         self._periodic_callback = None
@@ -134,6 +136,18 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         _yStart = -180
         _LINE_HEIGHT = 40
 
+        # --- lower-right algorithm status label (above T1) ------------------
+        self._algo_status_var = ctk.StringVar(value="")
+        self._algo_status_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._algo_status_var,
+            font=ctk.CTkFont(size=20),
+            text_color=HMIColors.TEXT_COLOR,
+        )
+        self._algo_status_lbl.place(
+            relx=1.0, rely=1.0, anchor="se", x=-10, y=_yStart - _LINE_HEIGHT
+        )
+
         self._t1_lbl.place(
             relx=1.0, rely=1.0, anchor="se", x=-10, y=_yStart + 0 * _LINE_HEIGHT
         )
@@ -209,6 +223,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self._load_alarm_levels_from_settings()
         )
         self._over_temp_power = self._load_over_temp_power_from_settings(default=0.75)
+        self._enable_array_temp_control = (
+            self._load_enable_array_temp_control_from_settings(default=False)
+        )
 
         # Cookpack temperature control
         s = Settings.Instance()
@@ -219,6 +236,12 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self.bottom_zones_correction_factor = s.bottom_zones_correction_factor
         self.tc = s.tc
         self.enable_cook_algorithm = s.enable_cook_algorithm
+
+        # Display static algorithm states once for this page show
+        self._algo_status_var.set(
+            f"Array Temp Ctrl: {'ON' if self._enable_array_temp_control else 'OFF'},   "
+            f"Cookpack Temp Ctrl: {'ON' if self.enable_cook_algorithm else 'OFF'}"
+        )
 
         # Make sure the over temp icon is initially hidden
         self.set_overtemp_visible(False)
@@ -275,6 +298,19 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 with open(path, "r") as f:
                     data = json.load(f)
                     return float(data.get("over_temp_power", default))
+        except Exception:
+            pass
+        return default
+
+    def _load_enable_array_temp_control_from_settings(
+        self, default: bool = False
+    ) -> bool:
+        path = os.path.join(SETTINGS_DIR, "settings.alt")
+        try:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    data = json.load(f)
+                    return bool(data.get("enable_array_temp_control", default))
         except Exception:
             pass
         return default
@@ -505,6 +541,24 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                         r1_str, r2_str = line[2:].split(",", 1)
                         r1, r2 = int(r1_str), int(r2_str)
 
+                        # Hard disable of array temperature control algorithm
+                        if not self._enable_array_temp_control:
+                            if self._inAlarmState:
+                                self.set_overtemp_visible(False)
+
+                                if self._isManualCookMode:
+                                    self._set_power_if_running(1.0)
+                                    if self._powerLevel is not None:
+                                        self.set_power_display(int(self._powerLevel))
+                                    else:
+                                        self.set_power_display(100)
+                                else:
+                                    self._set_program_scale(1.0)
+                                    self.set_power_display(100)
+
+                            self._inAlarmState = False
+                            return
+
                         L = self._alarm_level
                         H = self._alarm_hysteresis
 
@@ -548,7 +602,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                             else:
                                 # Leaving alarm: restore to 100%
                                 if self._isManualCookMode:
-                                    self._set_power_if_running(1)
+                                    self._set_power_if_running(1.0)
                                     if self._powerLevel is not None:
                                         self.set_power_display(int(self._powerLevel))
                                     else:
