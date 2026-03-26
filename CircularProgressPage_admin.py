@@ -10,12 +10,11 @@ from PIL import Image
 
 from DoorSafety import DoorSafety
 from hmi_consts import ASSETS_DIR, HMIColors
-from hmi_consts import SETTINGS_DIR  # NEW
-import os, json  # NEW
+from hmi_consts import SETTINGS_DIR
+import os, json
 
-# Reuse your existing widget
 from CircularProgress_admin import CircularProgress_admin
-from SerialService import SerialService  # uses your CTkCanvas-based class
+from SerialService import SerialService
 from MessageBoxPage import showerror
 from Settings import Settings
 import oven_state
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 PERIODIC_THERMISTOR = True
 PERIODIC_INTRERVAL_MS = 1000
-WDT_TIMEOUT_MS = 5000
+WDT_TIMEOUT_MS = 30000
 WDT_STARTUP_DELAY_MS = 2000
 
 
@@ -50,16 +49,29 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._on_stop = None
 
         # Cached alarm level (loaded on_show)
-        self._alarm_level: int = 1500  # default/fallback
-        self._alarm_hysteresis: int = 400  # default/fallback
+        self._alarm_level: int = 1500
+        self._alarm_hysteresis: int = 400
         self._inAlarmState: bool | None = False
         self._prevAlarmState: bool | None = None
 
         self._isManualCookMode: bool = False
         self._powerLevel: int | None = None
-        self._over_temp_power: float = 0.75  # fraction 0..1 used for throttling
+        self._over_temp_power: float = 0.75
         self._enable_array_temp_control: bool = False
         self.enable_cook_algorithm: bool = False
+
+        # Cookpack temperature control state
+        self.tset: float = 0.0
+        self.thys: float = 0.0
+        self.top_zones_correction_factor: float = 100.0
+        self.bottom_zones_correction_factor: float = 100.0
+        self.tc: float = 0.0
+
+        self._ir_temps: dict[int, float] = {}
+        self._cookpack_control_active: bool = False
+        self._cookpack_tc_remaining: float = 0.0
+        self._cookpack_last_tick_time: float | None = None
+        self._cookpack_finished: bool = False
 
         # --- NEW: completely independent 1-second periodic timer ------------
         self._periodic_callback = None
@@ -98,12 +110,11 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 light_image=img, dark_image=img, size=overtemp_size
             )
             self._overtemp_lbl = ctk.CTkLabel(self, image=self._overtemp_icon, text="")
-            # Note: not placed here; controlled by set_overtemp_visible()
         except Exception as e:
             print(f"Failed to load over_temp.png: {e}")
             self._overtemp_lbl = None
 
-        # --- Power/Scale label (ALWAYS visible, under where the icon goes) ---
+        # --- Power/Scale label ---------------------------------------------
         self._power_var = ctk.StringVar(value="Power: N/A")
         self._power_lbl = ctk.CTkLabel(
             self,
@@ -111,7 +122,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             font=ctk.CTkFont(size=22, weight="bold"),
             text_color=HMIColors.TEXT_COLOR,
         )
-        # Place in upper-right corner a bit below where the icon will sit
         self._power_lbl.place(relx=1.0, rely=0.0, anchor="ne", x=-25, y=130)
 
         # --- lower-right status label for last serial line ------------------
@@ -136,7 +146,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         _yStart = -180
         _LINE_HEIGHT = 40
 
-        # --- lower-right algorithm status label (above T1) ------------------
         self._algo_status_var = ctk.StringVar(value="")
         self._algo_status_lbl = ctk.CTkLabel(
             self,
@@ -185,7 +194,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             relx=1.0, rely=1.0, anchor="se", x=-10, y=_yStart + 3 * _LINE_HEIGHT
         )
 
-        # Serial
         self.serial: Optional["SerialService"] = getattr(
             self.controller, "serial", None
         )
@@ -193,10 +201,8 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self.serial.add_listener(self._on_serial_line)
             print("have serial")
 
-        # Periodic thermistor poll
         self.set_periodic_callback(self.on_read_controller_thermistors)
 
-        # --- Watchdog Timer -------------------------------------------------
         self._wdt_after_id = None
         self._wdt_timeout_ms = WDT_TIMEOUT_MS
         if PERIODIC_THERMISTOR:
@@ -210,15 +216,13 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         time_power_page: TimePowerPage | None = None,
         powerLevel: int | None = None,
     ):
-        # Store passed state
         self._isManualCookMode = bool(isManualCookMode)
         self._time_power_page = time_power_page
         self._powerLevel = powerLevel
 
-        # Reset previous alarm state
         self._prevAlarmState = None
         self._inAlarmState = None
-        # Load & cache alarm level (only when page is shown)
+
         self._alarm_level, self._alarm_hysteresis = (
             self._load_alarm_levels_from_settings()
         )
@@ -227,38 +231,30 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self._load_enable_array_temp_control_from_settings(default=False)
         )
 
-        # Cookpack temperature control
         s = Settings.Instance()
         s.load()
-        self.tset = s.tset
-        self.thys = s.thys
-        self.top_zones_correction_factor = s.top_zones_correction_factor
-        self.bottom_zones_correction_factor = s.bottom_zones_correction_factor
-        self.tc = s.tc
-        self.enable_cook_algorithm = s.enable_cook_algorithm
+        self.tset = float(s.tset)
+        self.thys = float(s.thys)
+        self.top_zones_correction_factor = float(s.top_zones_correction_factor)
+        self.bottom_zones_correction_factor = float(s.bottom_zones_correction_factor)
+        self.tc = float(s.tc)
+        self.enable_cook_algorithm = bool(s.enable_cook_algorithm)
 
-        # Display static algorithm states once for this page show
+        self._cookpack_reset_state()
+
         self._algo_status_var.set(
-            f"Array Temp Ctrl: {'ON' if self._enable_array_temp_control else 'OFF'},   "
+            f"Array Temp Ctrl: {'ON' if self._enable_array_temp_control else 'OFF'}, "
             f"Cookpack Temp Ctrl: {'ON' if self.enable_cook_algorithm else 'OFF'}"
         )
 
-        # Make sure the over temp icon is initially hidden
         self.set_overtemp_visible(False)
 
-        # Initialize the label for the current mode
         if self._isManualCookMode:
             self.set_power_display(int(self._powerLevel) if self._powerLevel else None)
         else:
-            # Program mode shows global scale
             self.set_power_display(100)
 
     def set_power_display(self, value: int | None):
-        """
-        Update the label:
-          - Manual Cook: 'NN% Power'
-          - Program Run: 'Scale: NN%'
-        """
         try:
             if value is None:
                 self._power_var.set(
@@ -274,11 +270,11 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 "Power: N/A" if self._isManualCookMode else "Scale: N/A"
             )
 
-    # ---------------------- Helper: load alarm level once -------------------
+    # ---------------------- Helper: settings -------------------------------
+
     def _load_alarm_levels_from_settings(
         self, defaultAlarmLevel: int = 1500, defaultHysteresis: int = 400
     ) -> tuple[int, int]:
-        """Read alarm_level from settings.alt (same key DiagnosticsPage uses)."""
         path = os.path.join(SETTINGS_DIR, "settings.alt")
         try:
             if os.path.exists(path):
@@ -315,8 +311,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             pass
         return default
 
+    # ---------------------- Helpers: UI / stop -----------------------------
+
     def set_overtemp_visible(self, show: bool):
-        """Show or hide the over-temp icon dynamically. Power/Scale label stays visible."""
         if self._overtemp_lbl:
             if show:
                 self._overtemp_lbl.place(relx=1.0, rely=0.0, anchor="ne", x=-25, y=25)
@@ -333,7 +330,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._tick()
 
     def stop(self):
-        was_running = self._running
         self._running = False
         if self.remaining_time <= 0.001:
             self.progress.update_progress(0, self.total_time)
@@ -356,8 +352,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self.controller.show_HomePage()
         except Exception as e:
             print(f"[CircularProgressPage] Failed to navigate HomePage: {e}")
-
-    # ---- Internal -------------------------------------------------------
 
     def _stop_manager(self):
         try:
@@ -453,7 +447,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
     # ===================== Watchdog Timer ===================================
 
     def _kick_watchdog(self):
-        """Reset the watchdog countdown."""
         if self._wdt_after_id is not None:
             try:
                 self.after_cancel(self._wdt_after_id)
@@ -462,28 +455,22 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._wdt_after_id = self.after(self._wdt_timeout_ms, self._wdt_expired)
 
     def _wdt_expired(self):
-        """Called if no kick in WDT_TIMEOUT_MS."""
         print("[CircularProgressPage] Watchdog expired: no serial data")
         try:
             logger.info("Lost communication with the controller!")
-            # publish timeout independent of door-open model
             DoorSafety.Instance().set_wdt_timed_out(True)
 
             self.stop()
-            if (
-                self.controller.is_admin
-            ):  # we only show the modal error message in admin mode so we don't hang the app with a hidden modal messagebox
+            if self.controller.is_admin:
                 showerror(
                     self.controller, "Error", "Lost communication with the controller!"
                 )
         except Exception as e:
             print(f"[CircularProgressPage] Failed to show error: {e}")
 
+    # ===================== Existing array-temp helpers =======================
+
     def _set_power_if_running(self, pct: float) -> None:
-        """
-        Runs on the UI thread. Atomically checks the oven running state and
-        calls TimePowerPage only if still running.
-        """
         with oven_state.lock:
             if (
                 oven_state.is_running
@@ -492,15 +479,208 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 self._time_power_page.set_power_to_percent_of_set_value(pct)
 
     def _set_program_scale(self, scale: float) -> None:
-        """
-        Program-run throttle: scale all active zones via the sequence manager.
-        """
         try:
             mgr = (self.shared_data or {}).get("sequence_manager")
             if mgr and hasattr(mgr, "set_power_scale"):
                 mgr.set_power_scale(max(0.0, min(1.0, float(scale))))
         except Exception as e:
             print(f"[CircularProgressPage] set_program_scale failed: {e}")
+
+    # ===================== Cookpack temp control helpers ====================
+
+    def _cookpack_reset_state(self) -> None:
+        self._ir_temps = {}
+        self._cookpack_control_active = False
+        self._cookpack_tc_remaining = float(self.tc)
+        self._cookpack_last_tick_time = None
+        self._cookpack_finished = False
+
+    def _parse_temp_value(self, line: str) -> float | None:
+        """
+        Returns the first numeric value from strings like:
+        T1 = 54.3
+        T1=54.3
+        T1 54.3
+        50.0,0.0
+        T1=50.0,0.0
+        """
+        try:
+            s = line.strip()
+
+            if "=" in s:
+                s = s.split("=", 1)[1].strip()
+            elif s.startswith("T") and len(s) > 2 and s[1].isdigit():
+                s = s[2:].strip()
+
+            first_value = s.split(",", 1)[0].strip()
+            return float(first_value)
+
+        except Exception:
+            return None
+
+    def _get_t0(self) -> float | None:
+        t1 = self._ir_temps.get(1)
+        t2 = self._ir_temps.get(2)
+        if t1 is None or t2 is None:
+            return None
+        return (t1 + t2) / 2.0
+
+    def _try_apply_zone_group_factors(
+        self, bottom_factor_pct: float, top_factor_pct: float
+    ) -> bool:
+        """
+        Best-effort application of bottom/top correction factors to Zones 1-4 / 5-8.
+        Factors are percentages, e.g. 80 means 80%.
+        """
+        mgr = (self.shared_data or {}).get("sequence_manager")
+        bottom_scale = max(0.0, min(1.0, float(bottom_factor_pct) / 100.0))
+        top_scale = max(0.0, min(1.0, float(top_factor_pct) / 100.0))
+
+        candidates = [
+            (
+                "set_top_bottom_zone_scale",
+                (),
+                {"top_scale": top_scale, "bottom_scale": bottom_scale},
+            ),
+            (
+                "set_top_bottom_group_scale",
+                (),
+                {"top_scale": top_scale, "bottom_scale": bottom_scale},
+            ),
+            (
+                "set_zone_group_scale",
+                (),
+                {"top_scale": top_scale, "bottom_scale": bottom_scale},
+            ),
+            (
+                "set_group_power_scale",
+                (),
+                {"top_scale": top_scale, "bottom_scale": bottom_scale},
+            ),
+        ]
+
+        for obj in [mgr, self.controller]:
+            if obj is None:
+                continue
+            for name, args, kwargs in candidates:
+                fn = getattr(obj, name, None)
+                if callable(fn):
+                    try:
+                        fn(*args, **kwargs)
+                        return True
+                    except TypeError:
+                        pass
+                    except Exception as e:
+                        print(f"[Cookpack] {name} failed: {e}")
+
+        # Fallback: try per-zone if supported
+        if mgr is not None:
+            set_zone_scale = getattr(mgr, "set_zone_scale", None)
+            if callable(set_zone_scale):
+                try:
+                    for zone in range(1, 5):
+                        set_zone_scale(zone, bottom_scale)
+                    for zone in range(5, 9):
+                        set_zone_scale(zone, top_scale)
+                    return True
+                except Exception as e:
+                    print(f"[Cookpack] set_zone_scale failed: {e}")
+
+        return False
+
+    def _restore_original_zone_values(self) -> None:
+        ok = self._try_apply_zone_group_factors(100.0, 100.0)
+        if not ok:
+            logger.info(
+                "[Cookpack] restore requested, but no supported zone-scale API was found"
+            )
+
+    def _apply_cookpack_zone_values(self) -> None:
+        ok = self._try_apply_zone_group_factors(
+            self.bottom_zones_correction_factor,
+            self.top_zones_correction_factor,
+        )
+        if not ok:
+            logger.info(
+                "[Cookpack] apply requested, but no supported zone-scale API was found"
+            )
+
+    def _finish_cookpack_cycle(self) -> None:
+        if self._cookpack_finished:
+            return
+        self._cookpack_finished = True
+        logger.info("[Cookpack] tC expired, ending cook cycle")
+        self._restore_original_zone_values()
+
+        self._running = False
+        self.progress.update_progress(0, self.total_time)
+        self._stop_manager()
+
+        try:
+            self.controller.show_FoodReadyPage(
+                auto_return_to=TimePowerPage, after_ms=10000
+            )
+        except Exception:
+            pass
+
+    def _evaluate_cookpack_temp_control(self) -> None:
+        if not self.enable_cook_algorithm:
+            return
+        if not oven_state.get_running():
+            return
+        if self._cookpack_finished:
+            return
+
+        t0 = self._get_t0()
+
+        print(f"t0 = {t0}")
+
+        if t0 is None:
+            return
+
+        now = time.time()
+
+        # Enter/continue control region
+        if t0 > self.tset:
+            self._apply_cookpack_zone_values()
+
+            if not self._cookpack_control_active:
+                self._cookpack_control_active = True
+                self._cookpack_last_tick_time = now
+                logger.info(
+                    f"[Cookpack] Entered control band, T0={t0:.2f}, tC={self._cookpack_tc_remaining:.1f}s"
+                )
+                return
+
+            if self._cookpack_last_tick_time is None:
+                self._cookpack_last_tick_time = now
+                return
+
+            dt = now - self._cookpack_last_tick_time
+            self._cookpack_last_tick_time = now
+            self._cookpack_tc_remaining = max(0.0, self._cookpack_tc_remaining - dt)
+
+            logger.info(
+                f"[Cookpack] T0={t0:.2f} > TSET={self.tset:.2f}, "
+                f"tC remaining={self._cookpack_tc_remaining:.1f}s"
+            )
+
+            if self._cookpack_tc_remaining <= 0.0:
+                self._finish_cookpack_cycle()
+            return
+
+        # Exit control region only when below lower hysteresis threshold
+        if t0 < (self.tset - self.thys):
+            if self._cookpack_control_active:
+                logger.info(
+                    f"[Cookpack] Left control band, T0={t0:.2f} < (TSET-THYS)={(self.tset - self.thys):.2f}"
+                )
+
+            self._cookpack_control_active = False
+            self._cookpack_last_tick_time = None
+            self._restore_original_zone_values()
+
+    # ===================== Serial handling ==================================
 
     def _on_serial_line(self, line: str) -> None:
         try:
@@ -530,18 +710,14 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
                 self._last_line_var.set(line)
 
-                # only do oven temperature control if we are in admin mode
                 if not self.controller.is_admin:
                     return
 
-                # --- Over-temp handling for BOTH modes ---------------------
                 try:
                     if oven_state.get_running():
-                        # Parse "R=num1,num2"
                         r1_str, r2_str = line[2:].split(",", 1)
                         r1, r2 = int(r1_str), int(r2_str)
 
-                        # Hard disable of array temperature control algorithm
                         if not self._enable_array_temp_control:
                             if self._inAlarmState:
                                 self.set_overtemp_visible(False)
@@ -562,7 +738,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                         L = self._alarm_level
                         H = self._alarm_hysteresis
 
-                        # first time -> initialize display
                         if self._inAlarmState is None:
                             if self._isManualCookMode:
                                 self.set_power_display(
@@ -571,21 +746,17 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                             else:
                                 self.set_power_display(100)
 
-                        prev = bool(self._inAlarmState)  # treat None as False
+                        prev = bool(self._inAlarmState)
 
                         if prev:
-                            # In alarm: remain in alarm unless BOTH are > L+H
                             in_alarm = not (r1 > L + H and r2 > L + H)
                         else:
-                            # Not in alarm: enter if ANY is < L
                             in_alarm = (r1 < L) or (r2 < L)
 
                         if in_alarm != prev:
-                            # State changed -> update UI/actions once
                             self.set_overtemp_visible(in_alarm)
 
                             if in_alarm:
-                                # Entering alarm: throttle
                                 throttle: float = self._over_temp_power
                                 if self._isManualCookMode:
                                     self._set_power_if_running(throttle)
@@ -596,11 +767,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                                     else:
                                         self.set_power_display(int(throttle * 100))
                                 else:
-                                    # Program mode -> scale all zones
                                     self._set_program_scale(throttle)
                                     self.set_power_display(int(throttle * 100))
                             else:
-                                # Leaving alarm: restore to 100%
                                 if self._isManualCookMode:
                                     self._set_power_if_running(1.0)
                                     if self._powerLevel is not None:
@@ -611,7 +780,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                                     self._set_program_scale(1.0)
                                     self.set_power_display(100)
 
-                        # Commit new state
                         self._inAlarmState = in_alarm
 
                 except ValueError:
@@ -619,12 +787,29 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
             if line.startswith("T1"):
                 self._t1_var.set(line)
+                temp = self._parse_temp_value(line)
+                if temp is not None:
+                    self._ir_temps[1] = temp
+                    self._evaluate_cookpack_temp_control()
+
             if line.startswith("T2"):
                 self._t2_var.set(line)
+                temp = self._parse_temp_value(line)
+                if temp is not None:
+                    self._ir_temps[2] = temp
+                    self._evaluate_cookpack_temp_control()
+
             if line.startswith("T3"):
                 self._t3_var.set(line)
+                temp = self._parse_temp_value(line)
+                if temp is not None:
+                    self._ir_temps[3] = temp
+
             if line.startswith("T4"):
                 self._t4_var.set(line)
+                temp = self._parse_temp_value(line)
+                if temp is not None:
+                    self._ir_temps[4] = temp
 
             if oven_state.get_running() and line.startswith(("T1", "T2", "T3", "T4")):
                 logger.info(line)

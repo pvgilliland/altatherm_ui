@@ -81,7 +81,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
             body,
             label="THYS (°C):",
             initial=25,
-            min_val=25,
+            min_val=0,
             max_val=100,
             step=1,
             big_step=5,
@@ -216,7 +216,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
             s = Settings.Instance()
 
             s.tset = self._clamp(int(self.tset_input.get()), 25, 100)
-            s.thys = self._clamp(int(self.thys_input.get()), 25, 100)
+            s.thys = self._clamp(int(self.thys_input.get()), 0, 100)
             s.top_zones_correction_factor = self._clamp(
                 int(self.top_zones_correction_factor_input.get()), 0, 100
             )

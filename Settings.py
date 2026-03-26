@@ -13,6 +13,7 @@ class Settings:
         self.bottom_zones_correction_factor = 80
         self.tc = 240
         self.enable_cook_algorithm = False
+        self.enable_array_temp_control = False
         self.load()
 
     @staticmethod
@@ -44,6 +45,9 @@ class Settings:
             self.enable_cook_algorithm = data.get(
                 "enable_cook_algorithm", self.enable_cook_algorithm
             )
+            self.enable_array_temp_control = data.get(
+                "enable_array_temp_control", self.enable_array_temp_control
+            )
 
         except Exception as e:
             print(f"[Settings] load failed: {e}")
@@ -67,6 +71,7 @@ class Settings:
             data["bottom_zones_correction_factor"] = self.bottom_zones_correction_factor
             data["tc"] = self.tc
             data["enable_cook_algorithm"] = self.enable_cook_algorithm
+            data["enable_array_temp_control"] = self.enable_array_temp_control
 
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)

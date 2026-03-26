@@ -1,9 +1,9 @@
 {
-  "tset": 25,
-  "thys": 26,
+  "tset": 70,
+  "thys": 10,
   "top_zones_correction_factor": 27,
   "bottom_zones_correction_factor": 28,
-  "tc": 29,
+  "tc": 30,
   "enable_cook_algorithm": true,
   "alarm_level": 1500,
   "alarm_hysteresis": 200,
@@ -11,8 +11,8 @@
   "use_sound": true,
   "oven_testing_power": 80,
   "manual_cook": {
-    "minute": 4,
-    "second": 10,
+    "minute": 15,
+    "second": 30,
     "power": 50
   },
   "enable_array_temp_control": false
