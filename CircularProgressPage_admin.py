@@ -579,6 +579,18 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             ):
                 self._time_power_page.set_power_to_percent_of_set_value(pct)
 
+    def _set_manual_top_bottom_power_if_running(
+        self, top_pct: float, bottom_pct: float
+    ) -> None:
+        with oven_state.lock:
+            if (
+                oven_state.is_running
+                and getattr(self, "_time_power_page", None) is not None
+            ):
+                self._time_power_page.set_top_bottom_power_to_percent_of_set_value(
+                    top_pct, bottom_pct
+                )
+
     def _set_program_scale(self, scale: float) -> None:
         try:
             mgr = (self.shared_data or {}).get("sequence_manager")
@@ -683,8 +695,12 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._cookpack_tc_remaining = 0.0
 
         # Restore all zones to 100%
-        self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
-        self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
+        if self._isManualCookMode:
+            self._set_manual_top_bottom_power_if_running(1.0, 1.0)
+        else:
+            self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
+            self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
+
         self._cookpack_top_running_pct = 100.0
         self._cookpack_bottom_running_pct = 100.0
         self._update_cookpack_display()
@@ -720,12 +736,15 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
         # Enter/continue control region
         if t0 > self.tset:
-            self._set_program_scale_for_arrays(
-                self.bottom_zones_correction_factor / 100.0, [1, 2, 3, 4]
-            )
-            self._set_program_scale_for_arrays(
-                self.top_zones_correction_factor / 100.0, [5, 6, 7, 8]
-            )
+            bottom_scale = self.bottom_zones_correction_factor / 100.0
+            top_scale = self.top_zones_correction_factor / 100.0
+
+            if self._isManualCookMode:
+                self._set_manual_top_bottom_power_if_running(top_scale, bottom_scale)
+            else:
+                self._set_program_scale_for_arrays(bottom_scale, [1, 2, 3, 4])
+                self._set_program_scale_for_arrays(top_scale, [5, 6, 7, 8])
+
             self._cookpack_top_running_pct = float(self.top_zones_correction_factor)
             self._cookpack_bottom_running_pct = float(
                 self.bottom_zones_correction_factor
@@ -770,8 +789,12 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self._cookpack_control_active = False
             self._cookpack_last_tick_time = None
 
-            self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
-            self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
+            if self._isManualCookMode:
+                self._set_manual_top_bottom_power_if_running(1.0, 1.0)
+            else:
+                self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
+                self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
+
             self._cookpack_top_running_pct = 100.0
             self._cookpack_bottom_running_pct = 100.0
             self._update_cookpack_display()

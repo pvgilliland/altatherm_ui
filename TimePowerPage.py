@@ -46,6 +46,11 @@ class TimePowerPage(ctk.CTkFrame):
         super().__init__(controller, fg_color=COLOR_FG, **kwargs)
         self.controller = controller
         self.shared_data = shared_data
+
+        # Change-detection cache for manual top/bottom zone updates
+        self._last_top_power_sent = None
+        self._last_bottom_power_sent = None
+
         self._build_ui()
 
     def _build_ui(self):
@@ -257,6 +262,10 @@ class TimePowerPage(ctk.CTkFrame):
         # Persist first, then execute the run
         self.persist_current_settings()
 
+        # Reset change-detection cache for a fresh run
+        self._last_top_power_sent = None
+        self._last_bottom_power_sent = None
+
         tpw = self.shared_data["time_power_page"]
         minute = int(tpw["minute"].get())
         second = int(tpw["second"].get())
@@ -269,6 +278,10 @@ class TimePowerPage(ctk.CTkFrame):
             self.controller.serial_all_zones(power)
         except Exception as e:
             print(f"[TimePowerPage] serial_all_zones({power}) failed: {e}")
+
+        # Seed cache to match the just-sent all-zone command
+        self._last_top_power_sent = power
+        self._last_bottom_power_sent = power
 
         # 2) Show the CircularProgressPage and ensure we turn things OFF when it ends (or STOP is pressed).
         self.controller.show_CircularProgressPage(
@@ -283,12 +296,70 @@ class TimePowerPage(ctk.CTkFrame):
         try:
             tpw = self.shared_data["time_power_page"]
             power = int(tpw["power"].get() * percent)
-            # 1) Turn everything on at the requested power right away.
             try:
                 self.controller.serial_all_zones(power)
             except Exception as e:
                 print(f"[TimePowerPage] serial_all_zones({power}) failed: {e}")
+
+            # Keep top/bottom cache aligned with global all-zone writes
+            self._last_top_power_sent = power
+            self._last_bottom_power_sent = power
+
         except Exception as e:
             print(
                 f"[TimePowerPage] set_power_to_percent_of_set_value({percent}) failed: {e}"
+            )
+
+    def set_top_bottom_power_to_percent_of_set_value(
+        self, top_percent: float, bottom_percent: float
+    ):
+        """
+        Manual-mode per-zone control.
+
+        top_percent and bottom_percent are 0.0 .. 1.0 fractions applied to the
+        user-set manual power level.
+
+        Top zones    = 5,6,7,8
+        Bottom zones = 1,2,3,4
+        """
+        try:
+            tpw = self.shared_data["time_power_page"]
+            base_power = int(tpw["power"].get())
+
+            top_percent = max(0.0, min(1.0, float(top_percent)))
+            bottom_percent = max(0.0, min(1.0, float(bottom_percent)))
+
+            top_power = int(base_power * top_percent)
+            bottom_power = int(base_power * bottom_percent)
+
+            # Change detection: do nothing if command values did not change
+            if (
+                self._last_top_power_sent == top_power
+                and self._last_bottom_power_sent == bottom_power
+            ):
+                return
+
+            for zone in [1, 2, 3, 4]:
+                try:
+                    self.controller.serial_zone(zone, bottom_power)
+                except Exception as e:
+                    print(
+                        f"[TimePowerPage] serial_zone({zone}, {bottom_power}) failed: {e}"
+                    )
+
+            for zone in [5, 6, 7, 8]:
+                try:
+                    self.controller.serial_zone(zone, top_power)
+                except Exception as e:
+                    print(
+                        f"[TimePowerPage] serial_zone({zone}, {top_power}) failed: {e}"
+                    )
+
+            self._last_top_power_sent = top_power
+            self._last_bottom_power_sent = bottom_power
+
+        except Exception as e:
+            print(
+                "[TimePowerPage] "
+                f"set_top_bottom_power_to_percent_of_set_value({top_percent}, {bottom_percent}) failed: {e}"
             )

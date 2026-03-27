@@ -13,7 +13,7 @@
   "manual_cook": {
     "minute": 15,
     "second": 30,
-    "power": 50
+    "power": 100
   },
   "enable_array_temp_control": false
 }
