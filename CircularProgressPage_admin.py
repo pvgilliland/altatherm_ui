@@ -73,6 +73,10 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._cookpack_last_tick_time: float | None = None
         self._cookpack_finished: bool = False
 
+        # Actual running percentages currently being commanded
+        self._cookpack_top_running_pct: float = 100.0
+        self._cookpack_bottom_running_pct: float = 100.0
+
         # --- NEW: completely independent 1-second periodic timer ------------
         self._periodic_callback = None
         self._periodic_after_id = None
@@ -194,6 +198,84 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             relx=1.0, rely=1.0, anchor="se", x=-10, y=_yStart + 3 * _LINE_HEIGHT
         )
 
+        # --- lower-left cookpack status labels ------------------------------
+        self._cookpack_tset_var = ctk.StringVar(value="")
+        self._cookpack_thys_var = ctk.StringVar(value="")
+        self._cookpack_tc_var = ctk.StringVar(value="")
+        self._cookpack_top_var = ctk.StringVar(value="")
+        self._cookpack_bottom_var = ctk.StringVar(value="")
+
+        self._cookpack_tset_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._cookpack_tset_var,
+            font=ctk.CTkFont(size=22),
+            text_color=HMIColors.TEXT_COLOR,
+        )
+        self._cookpack_thys_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._cookpack_thys_var,
+            font=ctk.CTkFont(size=22),
+            text_color=HMIColors.TEXT_COLOR,
+        )
+        self._cookpack_tc_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._cookpack_tc_var,
+            font=ctk.CTkFont(size=22),
+            text_color=HMIColors.TEXT_COLOR,
+        )
+        self._cookpack_top_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._cookpack_top_var,
+            font=ctk.CTkFont(size=22),
+            text_color=HMIColors.TEXT_COLOR,
+        )
+        self._cookpack_bottom_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._cookpack_bottom_var,
+            font=ctk.CTkFont(size=22),
+            text_color=HMIColors.TEXT_COLOR,
+        )
+
+        _left_x = 10
+        _bottom_y = -22
+        _left_line_height = 34
+
+        self._cookpack_tset_lbl.place(
+            relx=0.0,
+            rely=1.0,
+            anchor="sw",
+            x=_left_x,
+            y=_bottom_y - 4 * _left_line_height,
+        )
+        self._cookpack_thys_lbl.place(
+            relx=0.0,
+            rely=1.0,
+            anchor="sw",
+            x=_left_x,
+            y=_bottom_y - 3 * _left_line_height,
+        )
+        self._cookpack_tc_lbl.place(
+            relx=0.0,
+            rely=1.0,
+            anchor="sw",
+            x=_left_x,
+            y=_bottom_y - 2 * _left_line_height,
+        )
+        self._cookpack_top_lbl.place(
+            relx=0.0,
+            rely=1.0,
+            anchor="sw",
+            x=_left_x,
+            y=_bottom_y - 1 * _left_line_height,
+        )
+        self._cookpack_bottom_lbl.place(
+            relx=0.0,
+            rely=1.0,
+            anchor="sw",
+            x=_left_x,
+            y=_bottom_y - 0 * _left_line_height,
+        )
+
         self.serial: Optional["SerialService"] = getattr(
             self.controller, "serial", None
         )
@@ -248,6 +330,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         )
 
         self.set_overtemp_visible(False)
+        self._update_cookpack_display()
 
         if self._isManualCookMode:
             self.set_power_display(int(self._powerLevel) if self._powerLevel else None)
@@ -319,6 +402,24 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 self._overtemp_lbl.place(relx=1.0, rely=0.0, anchor="ne", x=-25, y=25)
             else:
                 self._overtemp_lbl.place_forget()
+
+    def _update_cookpack_display(self) -> None:
+        if self.enable_cook_algorithm:
+            self._cookpack_tset_var.set(f"TSET: {self.tset:.1f}C")
+            self._cookpack_thys_var.set(f"THYS: {self.thys:.1f}C")
+            self._cookpack_tc_var.set(f"tC: {self._cookpack_tc_remaining:.1f}s")
+            self._cookpack_top_var.set(
+                f"Top Running: {self._cookpack_top_running_pct:.0f}%"
+            )
+            self._cookpack_bottom_var.set(
+                f"Bottom Running: {self._cookpack_bottom_running_pct:.0f}%"
+            )
+        else:
+            self._cookpack_tset_var.set("")
+            self._cookpack_thys_var.set("")
+            self._cookpack_tc_var.set("")
+            self._cookpack_top_var.set("")
+            self._cookpack_bottom_var.set("")
 
     def start(self, start_seconds: float, on_stop=None):
         self.total_time = max(0.0, float(start_seconds))
@@ -486,6 +587,53 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         except Exception as e:
             print(f"[CircularProgressPage] set_program_scale failed: {e}")
 
+    def _set_program_scale_for_arrays(
+        self, scale: float, arrays: list[int] | tuple[int, ...]
+    ) -> None:
+        """
+        Program-run throttle for only selected arrays/zones.
+
+        scale:
+            0.0 .. 1.0
+
+        arrays:
+            iterable of zone numbers, e.g. [1,2,3,4] or [5,6,7,8]
+        """
+
+        try:
+            mgr = (self.shared_data or {}).get("sequence_manager")
+            if mgr is None:
+                return
+
+            scale = max(0.0, min(1.0, float(scale)))
+            arrays = [int(a) for a in arrays]
+
+            if hasattr(mgr, "set_zone_scale"):
+                for zone in arrays:
+                    mgr.set_zone_scale(zone, scale)
+                return
+
+            if hasattr(mgr, "set_array_scale"):
+                for zone in arrays:
+                    mgr.set_array_scale(zone, scale)
+                return
+
+            if hasattr(mgr, "set_selected_zone_scale"):
+                mgr.set_selected_zone_scale(arrays, scale)
+                return
+
+            if hasattr(mgr, "set_selected_array_scale"):
+                mgr.set_selected_array_scale(arrays, scale)
+                return
+
+            logger.info(
+                "[CircularProgressPage] set_program_scale_for_arrays failed: "
+                "no supported per-array scaling API found"
+            )
+
+        except Exception as e:
+            print(f"[CircularProgressPage] set_program_scale_for_arrays failed: {e}")
+
     # ===================== Cookpack temp control helpers ====================
 
     def _cookpack_reset_state(self) -> None:
@@ -494,6 +642,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._cookpack_tc_remaining = float(self.tc)
         self._cookpack_last_tick_time = None
         self._cookpack_finished = False
+        self._cookpack_top_running_pct = 100.0
+        self._cookpack_bottom_running_pct = 100.0
+        self._update_cookpack_display()
 
     def _parse_temp_value(self, line: str) -> float | None:
         """
@@ -525,92 +676,20 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             return None
         return (t1 + t2) / 2.0
 
-    def _try_apply_zone_group_factors(
-        self, bottom_factor_pct: float, top_factor_pct: float
-    ) -> bool:
-        """
-        Best-effort application of bottom/top correction factors to Zones 1-4 / 5-8.
-        Factors are percentages, e.g. 80 means 80%.
-        """
-        mgr = (self.shared_data or {}).get("sequence_manager")
-        bottom_scale = max(0.0, min(1.0, float(bottom_factor_pct) / 100.0))
-        top_scale = max(0.0, min(1.0, float(top_factor_pct) / 100.0))
-
-        candidates = [
-            (
-                "set_top_bottom_zone_scale",
-                (),
-                {"top_scale": top_scale, "bottom_scale": bottom_scale},
-            ),
-            (
-                "set_top_bottom_group_scale",
-                (),
-                {"top_scale": top_scale, "bottom_scale": bottom_scale},
-            ),
-            (
-                "set_zone_group_scale",
-                (),
-                {"top_scale": top_scale, "bottom_scale": bottom_scale},
-            ),
-            (
-                "set_group_power_scale",
-                (),
-                {"top_scale": top_scale, "bottom_scale": bottom_scale},
-            ),
-        ]
-
-        for obj in [mgr, self.controller]:
-            if obj is None:
-                continue
-            for name, args, kwargs in candidates:
-                fn = getattr(obj, name, None)
-                if callable(fn):
-                    try:
-                        fn(*args, **kwargs)
-                        return True
-                    except TypeError:
-                        pass
-                    except Exception as e:
-                        print(f"[Cookpack] {name} failed: {e}")
-
-        # Fallback: try per-zone if supported
-        if mgr is not None:
-            set_zone_scale = getattr(mgr, "set_zone_scale", None)
-            if callable(set_zone_scale):
-                try:
-                    for zone in range(1, 5):
-                        set_zone_scale(zone, bottom_scale)
-                    for zone in range(5, 9):
-                        set_zone_scale(zone, top_scale)
-                    return True
-                except Exception as e:
-                    print(f"[Cookpack] set_zone_scale failed: {e}")
-
-        return False
-
-    def _restore_original_zone_values(self) -> None:
-        ok = self._try_apply_zone_group_factors(100.0, 100.0)
-        if not ok:
-            logger.info(
-                "[Cookpack] restore requested, but no supported zone-scale API was found"
-            )
-
-    def _apply_cookpack_zone_values(self) -> None:
-        ok = self._try_apply_zone_group_factors(
-            self.bottom_zones_correction_factor,
-            self.top_zones_correction_factor,
-        )
-        if not ok:
-            logger.info(
-                "[Cookpack] apply requested, but no supported zone-scale API was found"
-            )
-
     def _finish_cookpack_cycle(self) -> None:
         if self._cookpack_finished:
             return
         self._cookpack_finished = True
+        self._cookpack_tc_remaining = 0.0
+
+        # Restore all zones to 100%
+        self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
+        self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
+        self._cookpack_top_running_pct = 100.0
+        self._cookpack_bottom_running_pct = 100.0
+        self._update_cookpack_display()
+
         logger.info("[Cookpack] tC expired, ending cook cycle")
-        self._restore_original_zone_values()
 
         self._running = False
         self.progress.update_progress(0, self.total_time)
@@ -624,6 +703,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             pass
 
     def _evaluate_cookpack_temp_control(self) -> None:
+
         if not self.enable_cook_algorithm:
             return
         if not oven_state.get_running():
@@ -633,8 +713,6 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
         t0 = self._get_t0()
 
-        print(f"t0 = {t0}")
-
         if t0 is None:
             return
 
@@ -642,11 +720,22 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
         # Enter/continue control region
         if t0 > self.tset:
-            self._apply_cookpack_zone_values()
+            self._set_program_scale_for_arrays(
+                self.bottom_zones_correction_factor / 100.0, [1, 2, 3, 4]
+            )
+            self._set_program_scale_for_arrays(
+                self.top_zones_correction_factor / 100.0, [5, 6, 7, 8]
+            )
+            self._cookpack_top_running_pct = float(self.top_zones_correction_factor)
+            self._cookpack_bottom_running_pct = float(
+                self.bottom_zones_correction_factor
+            )
+            self._update_cookpack_display()
 
             if not self._cookpack_control_active:
                 self._cookpack_control_active = True
                 self._cookpack_last_tick_time = now
+                self._update_cookpack_display()
                 logger.info(
                     f"[Cookpack] Entered control band, T0={t0:.2f}, tC={self._cookpack_tc_remaining:.1f}s"
                 )
@@ -654,11 +743,13 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
             if self._cookpack_last_tick_time is None:
                 self._cookpack_last_tick_time = now
+                self._update_cookpack_display()
                 return
 
             dt = now - self._cookpack_last_tick_time
             self._cookpack_last_tick_time = now
             self._cookpack_tc_remaining = max(0.0, self._cookpack_tc_remaining - dt)
+            self._update_cookpack_display()
 
             logger.info(
                 f"[Cookpack] T0={t0:.2f} > TSET={self.tset:.2f}, "
@@ -678,7 +769,12 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
             self._cookpack_control_active = False
             self._cookpack_last_tick_time = None
-            self._restore_original_zone_values()
+
+            self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
+            self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
+            self._cookpack_top_running_pct = 100.0
+            self._cookpack_bottom_running_pct = 100.0
+            self._update_cookpack_display()
 
     # ===================== Serial handling ==================================
 

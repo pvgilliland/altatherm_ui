@@ -11,7 +11,7 @@ class CookingSequenceRunner(threading.Thread):
         self._stop_event = threading.Event()
         self.running = False
 
-        # --- scaling support (existing) ---
+        # --- scaling support ---
         self._scale_supplier = lambda: 1.0  # returns float 0..1
         self._last_sent_scaled = None  # last scaled int(percent)
         self._current_target = 0  # current step's unscaled int(percent)
@@ -31,10 +31,12 @@ class CookingSequenceRunner(threading.Thread):
     def apply_scale(self, scale: float | None = None):
         if not self.running:
             return
+
         s = self._safe_scale(scale)
         scaled = int(round(self._current_target * s))
         if scaled != self._last_sent_scaled:
             try:
+                print(f"[{self.name}] RESCALE CALLBACK -> value={scaled}, duration=0")
                 self.callback(self.name, scaled, 0)
             except Exception as e:
                 print(f"[{self.name}] rescale callback error: {e}")
@@ -171,8 +173,12 @@ class CookingSequenceManager:
         self._pending = 0
         self._on_all_complete = None
         self._completed_once = False
+
         # global scale for all zones (0..1)
         self._power_scale = 1.0
+
+        # per-zone scale, keyed by runner name
+        self._zone_scales = {}
 
     def set_on_all_complete(self, fn):
         self._on_all_complete = fn
@@ -187,6 +193,50 @@ class CookingSequenceManager:
         if last and self._on_all_complete:
             threading.Thread(target=self._on_all_complete, daemon=True).start()
 
+    def _get_combined_scale_for_runner(self, runner_name: str) -> float:
+        global_scale = float(self._power_scale)
+        zone_scale = float(self._zone_scales.get(runner_name, 1.0))
+        return max(0.0, min(1.0, global_scale * zone_scale))
+
+    def _resolve_runner_name(self, zone) -> str | None:
+        """
+        Resolve an incoming zone identifier like:
+            1
+            "1"
+            "ZONE1"
+            "DAC1"
+        to the actual key used in self.runners.
+        """
+        candidates = []
+
+        # direct match first
+        candidates.append(zone)
+        candidates.append(str(zone))
+
+        try:
+            z = int(zone)
+            candidates.extend(
+                [
+                    f"ZONE{z}",
+                    f"Zone{z}",
+                    f"zone{z}",
+                    f"DAC{z}",
+                    f"Dac{z}",
+                    f"dac{z}",
+                    f"ARRAY{z}",
+                    f"Array{z}",
+                    f"array{z}",
+                ]
+            )
+        except Exception:
+            pass
+
+        for name in candidates:
+            if name in self.runners:
+                return name
+
+        return None
+
     def add_dac(self, dac_name, sequence, set_voltage_callback):
         runner = CookingSequenceRunner(
             sequence,
@@ -194,9 +244,14 @@ class CookingSequenceManager:
             name=dac_name,
             done_callback=self._runner_finished,
         )
-        # supply live scale to runner
-        runner.set_scale_supplier(lambda: self._power_scale)
+
+        # supply live scale to runner: global * per-zone
+        runner.set_scale_supplier(
+            lambda name=dac_name: self._get_combined_scale_for_runner(name)
+        )
+
         self.runners[dac_name] = runner
+        self._zone_scales.setdefault(dac_name, 1.0)
 
     def start_all(self):
         with self._lock:
@@ -234,4 +289,43 @@ class CookingSequenceManager:
             self._power_scale = s
             # Ask active runners to re-apply the scale right now
             for r in self.runners.values():
-                r.apply_scale(s)
+                r.apply_scale()
+
+    def set_zone_scale(self, zone, scale: float):
+        """
+        Set scale for one selected zone/array and immediately update
+        that runner's live output.
+        """
+
+        s = max(0.0, min(1.0, float(scale)))
+
+        with self._lock:
+            runner_name = self._resolve_runner_name(zone)
+
+            if runner_name is None:
+                print(
+                    f"[CookingSequenceManager] set_zone_scale: zone not found: {zone}"
+                )
+                return
+
+            self._zone_scales[runner_name] = s
+
+            r = self.runners.get(runner_name)
+
+            if r:
+                r.apply_scale()
+
+    def set_selected_zone_scale(self, zones, scale: float):
+        for zone in zones:
+            self.set_zone_scale(zone, scale)
+
+    def set_all_zone_scales(self, scale: float):
+        s = max(0.0, min(1.0, float(scale)))
+        with self._lock:
+            for name in self.runners.keys():
+                self._zone_scales[name] = s
+            for r in self.runners.values():
+                r.apply_scale()
+
+    def reset_zone_scales(self):
+        self.set_all_zone_scales(1.0)

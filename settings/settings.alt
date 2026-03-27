@@ -1,6 +1,6 @@
 {
   "tset": 70,
-  "thys": 10,
+  "thys": 0,
   "top_zones_correction_factor": 27,
   "bottom_zones_correction_factor": 28,
   "tc": 30,

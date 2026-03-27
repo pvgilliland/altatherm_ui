@@ -6,8 +6,8 @@
       "index": 0,
       "steps": [
         {
-          "power": 9,
-          "duration": 10.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -28,12 +28,12 @@
       "index": 1,
       "steps": [
         {
-          "power": 8,
-          "duration": 9.0
+          "power": 100,
+          "duration": 600.0
         },
         {
-          "power": 10,
-          "duration": 5.0
+          "power": 0,
+          "duration": 0.0
         },
         {
           "power": 0,
@@ -50,8 +50,8 @@
       "index": 2,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -62,8 +62,8 @@
           "duration": 0.0
         },
         {
-          "power": 7,
-          "duration": 8.0
+          "power": 0,
+          "duration": 0.0
         }
       ]
     },
@@ -72,8 +72,8 @@
       "index": 3,
       "steps": [
         {
-          "power": 6,
-          "duration": 7.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -94,8 +94,8 @@
       "index": 4,
       "steps": [
         {
-          "power": 5,
-          "duration": 6.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -116,8 +116,8 @@
       "index": 5,
       "steps": [
         {
-          "power": 4,
-          "duration": 5.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -138,8 +138,8 @@
       "index": 6,
       "steps": [
         {
-          "power": 3,
-          "duration": 4.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -160,8 +160,8 @@
       "index": 7,
       "steps": [
         {
-          "power": 2,
-          "duration": 3.0
+          "power": 100,
+          "duration": 600.0
         },
         {
           "power": 0,
@@ -178,5 +178,5 @@
       ]
     }
   ],
-  "total_time": "00:14"
+  "total_time": "10:00"
 }
