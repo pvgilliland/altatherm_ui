@@ -694,13 +694,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._cookpack_finished = True
         self._cookpack_tc_remaining = 0.0
 
-        # Restore all zones to 100%
-        if self._isManualCookMode:
-            self._set_manual_top_bottom_power_if_running(1.0, 1.0)
-        else:
-            self._set_program_scale_for_arrays(1.0, [1, 2, 3, 4])
-            self._set_program_scale_for_arrays(1.0, [5, 6, 7, 8])
-
+        # Restore display values to 100% before shutdown
         self._cookpack_top_running_pct = 100.0
         self._cookpack_bottom_running_pct = 100.0
         self._update_cookpack_display()
@@ -710,6 +704,11 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._running = False
         self.progress.update_progress(0, self.total_time)
         self._stop_manager()
+
+        try:
+            self.controller.serial_all_zones_off()
+        except Exception as e:
+            print(f"[CircularProgressPage] serial_all_zones_off() failed: {e}")
 
         try:
             self.controller.show_FoodReadyPage(
