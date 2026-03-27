@@ -37,7 +37,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="Cook Algorithm",
+            text="(Diag 2) Cookpack Algorithm",
             text_color=COLOR_BLUE,
             font=("Arial", 20, "bold"),
         ).pack(pady=(4, 8))
@@ -159,7 +159,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
         # Enable Cook Algorithm
         self.enable_cook_algorithm_checkbox = ctk.CTkCheckBox(
             body,
-            text="Enable Cook Algorithm",
+            text="Enable Cookpack Algorithm",
             font=lbl_font,
             text_color=COLOR_BLUE,
             fg_color=COLOR_BLUE,
