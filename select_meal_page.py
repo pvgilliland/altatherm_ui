@@ -15,8 +15,9 @@ class SelectMealPage:
 
     IMAGE_NAME = "01SelectMealPage.png"
 
-    def __init__(self, controller=None):
+    def __init__(self, controller=None, from_info=False):
         self.controller = controller
+        self.from_info = from_info
         self.meal_index: int = -1
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
@@ -60,7 +61,7 @@ class SelectMealPage:
         print(f"on_meal_clicked {meal_index}")
         self.meal_index = meal_index
         if self.controller:
-            self.controller.show_PrepareForCookingPage1()
+            self.controller.show_PrepareForCookingPage1(from_info=self.from_info)
 
     def on_back_clicked(self):
         print("on_back_clicked")

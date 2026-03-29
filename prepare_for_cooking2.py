@@ -15,8 +15,9 @@ class PrepareForCookingPage2:
 
     IMAGE_NAME = "03PrepareForCooking.png"
 
-    def __init__(self, controller=None):
+    def __init__(self, controller=None, from_info=False):
         self.controller = controller
+        self.from_info = from_info
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
         assets_dir = os.path.join(here, "assets")
@@ -44,9 +45,15 @@ class PrepareForCookingPage2:
     def on_back_clicked(self):
         print("on_back_clicked")
         if self.controller:
-            self.controller.show_PrepareForCookingPage1()
+            self.controller.show_PrepareForCookingPage1(from_info=self.from_info)
 
     def on_forward_clicked(self):
         print("on_forward_clicked")
-        if self.controller:
+
+        if not self.controller:
+            return
+
+        if self.from_info:
+            self.controller.show_SelectMealPage(from_info=True)
+        else:
             self.controller.show_StartCookingConfirmation()

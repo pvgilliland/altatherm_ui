@@ -28,6 +28,8 @@ class HomePage:
         self.hotspots: List[Hotspot] = [
             Hotspot("logo", (560, 230, 730, 390), self.on_logo_clicked),
             Hotspot("start", (495, 565, 776, 662), self.on_start_clicked),
+            # "i" icon hotspot
+            Hotspot("info", (1104, 629, 1205, 714), self.on_info_clicked),
         ]
 
         # Track recent logo click timestamps (seconds since epoch)
@@ -41,6 +43,11 @@ class HomePage:
         if self.controller:
             # e.g. self.controller.show_PreparePage()
             self.controller.show_SelectMealPage()
+
+    def on_info_clicked(self):
+        print("HomePage: Info clicked")
+        if self.controller:
+            self.controller.show_PrepareForCookingPage1(from_info=True)
 
     def on_logo_clicked(self):
         """

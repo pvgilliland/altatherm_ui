@@ -517,13 +517,21 @@ class MultiPageController:
         else:
             self.show_page(self.home_page)
 
-    def show_SelectMealPage(self) -> None:
+    def show_SelectMealPage(self, from_info=False) -> None:
+        self.select_meal_page = SelectMealPage(controller=self, from_info=from_info)
         self.show_page(self.select_meal_page)
 
-    def show_PrepareForCookingPage1(self) -> None:
+    # pass state to know if opened from "i info button click"
+    def show_PrepareForCookingPage1(self, from_info=False) -> None:
+        self.prepare_for_cooking_page1 = PrepareForCookingPage1(
+            controller=self, from_info=from_info
+        )
         self.show_page(self.prepare_for_cooking_page1)
 
-    def show_PrepareForCookingPage2(self) -> None:
+    def show_PrepareForCookingPage2(self, from_info=False):
+        self.prepare_for_cooking_page2 = PrepareForCookingPage2(
+            controller=self, from_info=from_info
+        )
         self.show_page(self.prepare_for_cooking_page2)
 
     def show_StartCookingConfirmation(self) -> None:
