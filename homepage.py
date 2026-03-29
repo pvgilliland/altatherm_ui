@@ -27,7 +27,7 @@ class HomePage:
 
         self.hotspots: List[Hotspot] = [
             Hotspot("logo", (560, 230, 730, 390), self.on_logo_clicked),
-            Hotspot("start", (519, 577, 753, 654), self.on_start_clicked),
+            Hotspot("start", (495, 565, 776, 662), self.on_start_clicked),
         ]
 
         # Track recent logo click timestamps (seconds since epoch)
