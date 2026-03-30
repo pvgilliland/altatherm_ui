@@ -60,8 +60,16 @@ class SelectMealPage:
     def on_meal_clicked(self, meal_index: int):
         print(f"on_meal_clicked {meal_index}")
         self.meal_index = meal_index
-        if self.controller:
-            self.controller.show_PrepareForCookingPage1(from_info=self.from_info)
+
+        if not self.controller:
+            return
+
+        if self.from_info:
+            # Direct path → Confirmation page
+            self.controller.show_StartCookingConfirmation()
+        else:
+            # Normal flow
+            self.controller.show_PrepareForCookingPage1(from_info=False)
 
     def on_back_clicked(self):
         print("on_back_clicked")

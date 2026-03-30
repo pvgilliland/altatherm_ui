@@ -63,7 +63,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
             label="TSET (°C):",
             initial=60,
             min_val=25,
-            max_val=100,
+            max_val=300,
             step=1,
             big_step=5,
             repeat_delay=400,
@@ -215,7 +215,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
         try:
             s = Settings.Instance()
 
-            s.tset = self._clamp(int(self.tset_input.get()), 25, 100)
+            s.tset = self._clamp(int(self.tset_input.get()), 25, 300)
             s.thys = self._clamp(int(self.thys_input.get()), 0, 100)
             s.top_zones_correction_factor = self._clamp(
                 int(self.top_zones_correction_factor_input.get()), 0, 100
