@@ -54,6 +54,10 @@ class SelectMealPage:
             )
         )
 
+        self.hotspots.append(
+            Hotspot(f"question", (1110, 637, 1205, 718), self.on_question_clicked)
+        )
+
     # ------------------------------------------------------------------
     # Callbacks
     # ------------------------------------------------------------------
@@ -75,6 +79,11 @@ class SelectMealPage:
         print("on_back_clicked")
         if self.controller:
             self.controller.show_HomePage()
+
+    def on_question_clicked(self):
+        print("on_question_clicked")
+        if self.controller:
+            self.controller.show_PrepareForCookingPage1(from_info=True)
 
     def on_exit_clicked(self):
         print("HomePage: Exit clicked")
