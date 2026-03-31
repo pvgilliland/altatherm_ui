@@ -517,8 +517,15 @@ class MultiPageController:
         else:
             self.show_page(self.home_page)
 
-    def show_SelectMealPage(self, from_info=False) -> None:
-        self.select_meal_page = SelectMealPage(controller=self, from_info=from_info)
+    def show_SelectMealPage(
+        self, from_info=False, scroll_row=0, meal_labels=None
+    ) -> None:
+        self.select_meal_page = SelectMealPage(
+            controller=self,
+            from_info=from_info,
+            scroll_row=scroll_row,
+            meal_labels=meal_labels,
+        )
         self.show_page(self.select_meal_page)
 
     # pass state to know if opened from "i info button click"
