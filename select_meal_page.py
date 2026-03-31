@@ -33,8 +33,8 @@ class SelectMealPage:
     QUESTION_RECT = (1110, 637, 1205, 718)
 
     SCROLL_TRACK_RECT = (1190, 215, 1230, 590)
-    SCROLL_UP_RECT = (1170, 215, 1250, 275)
-    SCROLL_DOWN_RECT = (1170, 530, 1250, 590)
+    SCROLL_UP_RECT = (1170, 155, 1250, 230)
+    SCROLL_DOWN_RECT = (1170, 576, 1250, 651)
 
     def __init__(
         self,
@@ -195,32 +195,34 @@ class SelectMealPage:
                 {
                     "kind": "rounded_rect",
                     "bbox": (tx1 + 4, thumb_y, tx2 - 4, thumb_y + thumb_h),
-                    "outline": "#C7A64B",
-                    "fill": "#C7A64B",
+                    "outline": "#444444",
+                    "fill": "#2A2A2A",
                     "width": 1,
                     "radius": 10,
                 }
             )
 
-            # Visible up arrow
+            # SMALL GOLD CHEVRON UP
             self.overlay_shapes.append(
                 {
                     "kind": "triangle_up",
                     "bbox": self.SCROLL_UP_RECT,
-                    "outline": "#F2F2F2",
-                    "fill": "#F2F2F2",
-                    "width": 1,
+                    "outline": "#C7A64B",
+                    "fill": "#C7A64B",
+                    "width": 4,
+                    "size": 20,  # controls how small it is
                 }
             )
 
-            # Visible down arrow
+            # SMALL GOLD CHEVRON DOWN
             self.overlay_shapes.append(
                 {
                     "kind": "triangle_down",
                     "bbox": self.SCROLL_DOWN_RECT,
-                    "outline": "#F2F2F2",
-                    "fill": "#F2F2F2",
-                    "width": 1,
+                    "outline": "#C7A64B",
+                    "fill": "#C7A64B",
+                    "width": 4,
+                    "size": 20,
                 }
             )
 

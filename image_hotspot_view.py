@@ -199,14 +199,36 @@ class ImageHotspotView(ctk.CTkFrame):
 
         return ImageFont.load_default()
 
-    def _draw_triangle_up(self, draw: ImageDraw.ImageDraw, bbox, outline, fill):
+    def _draw_triangle_up(self, draw, bbox, outline, fill, size=16):
         x1, y1, x2, y2 = bbox
-        pts = [((x1 + x2) // 2, y1), (x1, y2), (x2, y2)]
+
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+
+        s = size
+
+        pts = [
+            (cx, cy - s),  # top
+            (cx - s, cy + s),  # bottom left
+            (cx + s, cy + s),  # bottom right
+        ]
+
         draw.polygon(pts, outline=outline, fill=fill)
 
-    def _draw_triangle_down(self, draw: ImageDraw.ImageDraw, bbox, outline, fill):
+    def _draw_triangle_down(self, draw, bbox, outline, fill, size=16):
         x1, y1, x2, y2 = bbox
-        pts = [(x1, y1), (x2, y1), ((x1 + x2) // 2, y2)]
+
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+
+        s = size
+
+        pts = [
+            (cx - s, cy - s),
+            (cx + s, cy - s),
+            (cx, cy + s),
+        ]
+
         draw.polygon(pts, outline=outline, fill=fill)
 
     def _apply_overlay(self, pil_img, page_obj):
@@ -246,9 +268,21 @@ class ImageHotspotView(ctk.CTkFrame):
                     width=width,
                 )
             elif kind == "triangle_up":
-                self._draw_triangle_up(draw, bbox, outline, fill)
+                self._draw_triangle_up(
+                    draw,
+                    bbox,
+                    outline,
+                    fill,
+                    shape.get("size", 16),
+                )
             elif kind == "triangle_down":
-                self._draw_triangle_down(draw, bbox, outline, fill)
+                self._draw_triangle_down(
+                    draw,
+                    bbox,
+                    outline,
+                    fill,
+                    shape.get("size", 16),
+                )
 
         for item in getattr(page_obj, "overlay_text", []):
             xy = item.get("xy")
