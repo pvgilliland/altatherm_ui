@@ -33,8 +33,8 @@ class SelectMealPage:
     QUESTION_RECT = (1110, 637, 1205, 718)
 
     SCROLL_TRACK_RECT = (1190, 215, 1230, 590)
-    SCROLL_UP_RECT = (1170, 155, 1250, 230)
-    SCROLL_DOWN_RECT = (1170, 576, 1250, 651)
+    SCROLL_UP_RECT = (1170, 165, 1250, 240)
+    SCROLL_DOWN_RECT = (1170, 566, 1250, 641)
 
     def __init__(
         self,
@@ -138,14 +138,26 @@ class SelectMealPage:
 
             # Simple circular icon placeholder
             cx = x1 + self.BTN_WIDTH // 2
-            cy = y1 + 58
-            r = 48
+            cy = y1 + 50
+            r = 90
             self.overlay_shapes.append(
                 {
                     "kind": "ellipse",
                     "bbox": (cx - r, cy - r, cx + r, cy + r),
                     "outline": "#F2F2F2",
+                    "fill": "#000000",
                     "width": 5,
+                }
+            )
+
+            self.overlay_text.append(
+                {
+                    "xy": (cx, cy),
+                    "text": "Food Image Here",
+                    "fill": "#888888",  # lighter gray so it's subtle
+                    "anchor": "mm",  # middle-middle (centered)
+                    "font_size": 16,
+                    "font_weight": "normal",
                 }
             )
 
@@ -207,8 +219,8 @@ class SelectMealPage:
                 {
                     "kind": "triangle_up",
                     "bbox": self.SCROLL_UP_RECT,
-                    "outline": "#C7A64B",
-                    "fill": "#C7A64B",
+                    "outline": "#8A5A12",
+                    "fill": "#8A5A12",
                     "width": 4,
                     "size": 20,  # controls how small it is
                 }
@@ -219,8 +231,8 @@ class SelectMealPage:
                 {
                     "kind": "triangle_down",
                     "bbox": self.SCROLL_DOWN_RECT,
-                    "outline": "#C7A64B",
-                    "fill": "#C7A64B",
+                    "outline": "#8A5A12",
+                    "fill": "#8A5A12",
                     "width": 4,
                     "size": 20,
                 }
