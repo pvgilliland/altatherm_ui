@@ -69,6 +69,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
         self._ir_temps: dict[int, float] = {}
         self._cookpack_control_active: bool = False
+        self._cookpack_started: bool = False
         self._cookpack_tc_remaining: float = 0.0
         self._cookpack_last_tick_time: float | None = None
         self._cookpack_finished: bool = False
@@ -651,6 +652,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
     def _cookpack_reset_state(self) -> None:
         self._ir_temps = {}
         self._cookpack_control_active = False
+        self._cookpack_started = False
         self._cookpack_tc_remaining = float(self.tc)
         self._cookpack_last_tick_time = None
         self._cookpack_finished = False
@@ -727,13 +729,32 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             return
 
         t0 = self._get_t0()
-
         if t0 is None:
             return
 
         now = time.time()
 
-        # Enter/continue control region
+        # Latch started the first time T0 exceeds TSET.
+        # After this point, tC keeps counting down no matter what T0 does.
+        if (not self._cookpack_started) and (t0 > self.tset):
+            self._cookpack_started = True
+            self._cookpack_last_tick_time = now
+            logger.info(
+                f"[Cookpack] Started countdown, T0={t0:.2f} crossed TSET={self.tset:.2f}, "
+                f"tC={self._cookpack_tc_remaining:.1f}s"
+            )
+
+        # Once started, tC continues continuously.
+        if self._cookpack_started:
+            if self._cookpack_last_tick_time is None:
+                self._cookpack_last_tick_time = now
+            else:
+                dt = now - self._cookpack_last_tick_time
+                self._cookpack_last_tick_time = now
+                self._cookpack_tc_remaining = max(0.0, self._cookpack_tc_remaining - dt)
+
+        # Power-control behavior still depends on current temperature.
+        # Above TSET -> apply Cookpack correction factors.
         if t0 > self.tset:
             bottom_scale = self.bottom_zones_correction_factor / 100.0
             top_scale = self.top_zones_correction_factor / 100.0
@@ -744,49 +765,21 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 self._set_program_scale_for_arrays(bottom_scale, [1, 2, 3, 4])
                 self._set_program_scale_for_arrays(top_scale, [5, 6, 7, 8])
 
+            self._cookpack_control_active = True
             self._cookpack_top_running_pct = float(self.top_zones_correction_factor)
             self._cookpack_bottom_running_pct = float(
                 self.bottom_zones_correction_factor
             )
-            self._update_cookpack_display()
 
-            if not self._cookpack_control_active:
-                self._cookpack_control_active = True
-                self._cookpack_last_tick_time = now
-                self._update_cookpack_display()
-                logger.info(
-                    f"[Cookpack] Entered control band, T0={t0:.2f}, tC={self._cookpack_tc_remaining:.1f}s"
-                )
-                return
-
-            if self._cookpack_last_tick_time is None:
-                self._cookpack_last_tick_time = now
-                self._update_cookpack_display()
-                return
-
-            dt = now - self._cookpack_last_tick_time
-            self._cookpack_last_tick_time = now
-            self._cookpack_tc_remaining = max(0.0, self._cookpack_tc_remaining - dt)
-            self._update_cookpack_display()
-
-            logger.info(
-                f"[Cookpack] T0={t0:.2f} > TSET={self.tset:.2f}, "
-                f"tC remaining={self._cookpack_tc_remaining:.1f}s"
-            )
-
-            if self._cookpack_tc_remaining <= 0.0:
-                self._finish_cookpack_cycle()
-            return
-
-        # Exit control region only when below lower hysteresis threshold
-        if t0 < (self.tset - self.thys):
+        # Below lower hysteresis threshold -> restore full power,
+        # but do NOT stop the countdown once started.
+        elif t0 < (self.tset - self.thys):
             if self._cookpack_control_active:
                 logger.info(
                     f"[Cookpack] Left control band, T0={t0:.2f} < (TSET-THYS)={(self.tset - self.thys):.2f}"
                 )
 
             self._cookpack_control_active = False
-            self._cookpack_last_tick_time = None
 
             if self._isManualCookMode:
                 self._set_manual_top_bottom_power_if_running(1.0, 1.0)
@@ -796,7 +789,20 @@ class CircularProgressPage_admin(ctk.CTkFrame):
 
             self._cookpack_top_running_pct = 100.0
             self._cookpack_bottom_running_pct = 100.0
-            self._update_cookpack_display()
+
+        # Between (TSET-THYS) and TSET:
+        # leave current output state unchanged; countdown still continues if started.
+
+        self._update_cookpack_display()
+
+        if self._cookpack_started:
+            logger.info(
+                f"[Cookpack] T0={t0:.2f}, started={self._cookpack_started}, "
+                f"tC remaining={self._cookpack_tc_remaining:.1f}s"
+            )
+
+        if self._cookpack_started and self._cookpack_tc_remaining <= 0.0:
+            self._finish_cookpack_cycle()
 
     # ===================== Serial handling ==================================
 
