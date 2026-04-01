@@ -37,7 +37,7 @@ class ImageHotspotView(ctk.CTkFrame):
         if getattr(self, "_initialized", False):
             return
 
-        super().__init__(master, fg_color=HMIColors.color_fg, **kwargs)
+        super().__init__(master, fg_color="black", **kwargs)
         self._initialized = True
 
         self._current_page = None
@@ -50,7 +50,7 @@ class ImageHotspotView(ctk.CTkFrame):
             height=self.IMG_HEIGHT,
             highlightthickness=0,
             bd=0,
-            bg=HMIColors.color_fg,
+            bg="black",
         )
         self.canvas.pack()
         self.canvas.bind("<Button-1>", self._on_click)
