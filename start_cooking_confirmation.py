@@ -62,11 +62,32 @@ class StartCookingConfirmation:
                 (490, 641, 785, 716),
                 self.on_start_clicked,  # ← capture parameter
             ),
+            Hotspot(
+                f"home",
+                (1138, 43, 1205, 98),
+                self.on_home_clicked,  # ← capture parameter
+            ),
+            Hotspot(
+                f"question",
+                (1115, 634, 1212, 722),
+                self.on_question_clicked,  # ← capture parameter
+            ),
         ]
 
     # ------------------------------------------------------------------
     # Callbacks
     # ------------------------------------------------------------------
+
+    def on_question_clicked(self):
+        print("on_question_clicked")
+        if self.controller:
+            self.controller.show_PrepareForCookingPage1(from_info=False)
+
+    def on_home_clicked(self):
+        print("on_home_clicked")
+        if not self.controller:
+            return
+        self.controller.show_HomePage()
 
     def on_back_clicked(self):
         print("on_back_clicked")
