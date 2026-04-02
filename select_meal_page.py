@@ -71,6 +71,7 @@ class SelectMealPage:
         assets_dir = os.path.join(here, "assets")
         os.makedirs(assets_dir, exist_ok=True)
         self.image_path = os.path.join(assets_dir, self.IMAGE_NAME)
+        self.reheat_image_path = os.path.join(assets_dir, "Reheat.png")
 
         self.hotspots: List[Hotspot] = []
         self.overlay_shapes: List[Dict[str, Any]] = []
@@ -140,26 +141,37 @@ class SelectMealPage:
             cx = x1 + self.BTN_WIDTH // 2
             cy = y1 + 50
             r = 90
-            self.overlay_shapes.append(
-                {
-                    "kind": "ellipse",
-                    "bbox": (cx - r, cy - r, cx + r, cy + r),
-                    "outline": "#F2F2F2",
-                    "fill": "#000000",
-                    "width": 5,
-                }
-            )
+            if meal_index != 5:
+                self.overlay_shapes.append(
+                    {
+                        "kind": "ellipse",
+                        "bbox": (cx - r, cy - r, cx + r, cy + r),
+                        "outline": "#F2F2F2",
+                        "fill": "#000000",
+                        "width": 5,
+                    }
+                )
 
-            self.overlay_text.append(
-                {
-                    "xy": (cx, cy),
-                    "text": "Food Image Here",
-                    "fill": "#888888",  # lighter gray so it's subtle
-                    "anchor": "mm",  # middle-middle (centered)
-                    "font_size": 16,
-                    "font_weight": "normal",
-                }
-            )
+            if meal_index == 5 and os.path.exists(self.reheat_image_path):
+                sz = 108
+                self.overlay_shapes.append(
+                    {
+                        "kind": "image",
+                        "bbox": (cx - sz, cy - sz, cx + sz, cy + sz),
+                        "image_path": self.reheat_image_path,
+                    }
+                )
+            else:
+                self.overlay_text.append(
+                    {
+                        "xy": (cx, cy),
+                        "text": "Food Image Here",
+                        "fill": "#888888",
+                        "anchor": "mm",
+                        "font_size": 16,
+                        "font_weight": "normal",
+                    }
+                )
 
             # Meal label
             self.overlay_text.append(

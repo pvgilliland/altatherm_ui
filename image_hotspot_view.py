@@ -303,6 +303,24 @@ class ImageHotspotView(ctk.CTkFrame):
                     fill,
                     shape.get("size", 16),
                 )
+            elif kind == "image":
+                image_path = shape.get("image_path")
+                if image_path and os.path.exists(image_path):
+                    try:
+                        overlay = Image.open(image_path).convert("RGBA")
+                        x1, y1, x2, y2 = bbox
+
+                        target_w = x2 - x1
+                        target_h = y2 - y1
+
+                        overlay.thumbnail((target_w, target_h), Image.LANCZOS)
+
+                        ox = x1 + (target_w - overlay.width) // 2
+                        oy = y1 + (target_h - overlay.height) // 2
+
+                        pil_img.paste(overlay, (ox, oy), overlay)
+                    except Exception as e:
+                        print(f"Failed to draw overlay image: {e}")
 
         for item in getattr(page_obj, "overlay_text", []):
             xy = item.get("xy")
