@@ -1,4 +1,3 @@
-# testpage.py
 import json
 import os
 from typing import List
@@ -27,15 +26,6 @@ class StartCookingConfirmation:
         self.controller = controller
         self.meal_index: int = -1  # ← store for incoming parameter
 
-        # self.meal_images = {
-        #     0: ("ShrimpCurry.png", "Shrimp Curry"),
-        #     1: ("ChickenParmesan.png", "Chicken Parmesan"),
-        #     2: ("BeefStirFry.png", "Beef Stir Fry"),
-        #     3: ("salmon.png", "Salmon"),
-        #     4: ("SteakAndBroccoli.png", "Steak abd Broccoli"),
-        #     5: ("Reheat.png", "Reheat"),
-        # }
-
         self.meal_images = {
             0: ("food.png", "Item 1"),
             1: ("food.png", "Item 2"),
@@ -53,24 +43,24 @@ class StartCookingConfirmation:
 
         self.hotspots: List[Hotspot] = [
             Hotspot(
-                f"back",
+                "back",
                 (84, 642, 154, 707),
-                self.on_back_clicked,  # ← capture parameter
+                self.on_back_clicked,
             ),
             Hotspot(
-                f"start",
+                "start",
                 (490, 641, 785, 716),
-                self.on_start_clicked,  # ← capture parameter
+                self.on_start_clicked,
             ),
             Hotspot(
-                f"home",
+                "home",
                 (1138, 43, 1205, 98),
-                self.on_home_clicked,  # ← capture parameter
+                self.on_home_clicked,
             ),
             Hotspot(
-                f"question",
+                "question",
                 (1115, 634, 1212, 722),
-                self.on_question_clicked,  # ← capture parameter
+                self.on_question_clicked,
             ),
         ]
 
@@ -79,19 +69,45 @@ class StartCookingConfirmation:
     # ------------------------------------------------------------------
 
     def on_question_clicked(self):
-        print("on_question_clicked")
-        if self.controller:
-            self.controller.show_PrepareForCookingPage1(from_info=False)
+        print(f"on_question_clicked {self.meal_index}")
+
+        if not self.controller:
+            return
+
+        if self.meal_index == 5:
+            self.controller.shared_data["show_reheat_time_attention"] = True
+
+            view = getattr(self.controller, "view", None)
+            if view and hasattr(view, "show_reheat_time_attention"):
+                view.show_reheat_time_attention()
+
+            return
+
+        self.controller.shared_data["show_reheat_time_attention"] = False
+        self.controller.show_PrepareForCookingPage1(from_info=False)
 
     def on_home_clicked(self):
         print("on_home_clicked")
         if not self.controller:
             return
+
+        self.controller.shared_data["show_reheat_time_attention"] = False
+
+        view = getattr(self.controller, "view", None)
+        if view and hasattr(view, "hide_reheat_time_attention"):
+            view.hide_reheat_time_attention()
+
         self.controller.show_HomePage()
 
     def on_back_clicked(self):
         print("on_back_clicked")
         if self.controller:
+            self.controller.shared_data["show_reheat_time_attention"] = False
+
+            view = getattr(self.controller, "view", None)
+            if view and hasattr(view, "hide_reheat_time_attention"):
+                view.hide_reheat_time_attention()
+
             self.controller.show_PrepareForCookingPage2()
 
     def on_start_clicked(self):
@@ -132,6 +148,7 @@ class StartCookingConfirmation:
             # Valid reheat time → store in shared_data for CookingPage
             print(f"[StartCookingConfirmation] reheat_seconds = {reheat_secs}")
             self.controller.shared_data["reheat_seconds"] = reheat_secs
+            self.controller.shared_data["show_reheat_time_attention"] = False
 
         else:
             # Normal meal: look up the program's total_time and block if 0
@@ -168,6 +185,8 @@ class StartCookingConfirmation:
             view = getattr(self.controller, "view", None)
             if view and hasattr(view, "_on_door_lock_error"):
                 view._on_door_lock_error(False)
+            if view and hasattr(view, "hide_reheat_time_attention"):
+                view.hide_reheat_time_attention()
         except Exception:
             pass
 
@@ -178,7 +197,7 @@ class StartCookingConfirmation:
     # ------------------------------------------------------------------
     def on_show(self, meal_index: int):
         self.meal_index = meal_index
-        # Look up the meal's image
+
         filename, name = self.meal_images[meal_index]
 
         if not filename:
@@ -198,29 +217,36 @@ class StartCookingConfirmation:
             data = json.load(f)
         total_time = data.get("total_time")
 
-        # Show it in the confirmation page
         self.controller.view.set_overlay_image(
             image_path, name, total_time, size=(270, 200)
         )
 
-        # -------------------------------
-        # If meal_index == 5 (Reheat), show 15-sec adjuster
-        # -------------------------------
         if meal_index == 5:
             print("Showing TimeAdjustControl for Reheat")
 
-            # Default to 30 sec, clamp min/max as needed
             self.controller.view.show_reheat_time_control(
                 initial_seconds=0,
                 min_seconds=0,
-                max_seconds=120,  # up to 5 minutes if you want
+                max_seconds=120,
                 on_change=lambda secs: print("Reheat time changed:", secs),
             )
 
+            if self.controller.shared_data.get("show_reheat_time_attention", False):
+                if hasattr(self.controller.view, "show_reheat_time_attention"):
+                    self.controller.view.show_reheat_time_attention()
+            else:
+                if hasattr(self.controller.view, "hide_reheat_time_attention"):
+                    self.controller.view.hide_reheat_time_attention()
+
         else:
-            # Hide it for all non-Reheat meals
             self.controller.view.hide_reheat_time_control()
+            if hasattr(self.controller.view, "hide_reheat_time_attention"):
+                self.controller.view.hide_reheat_time_attention()
+            self.controller.shared_data["show_reheat_time_attention"] = False
 
     def on_hide(self):
         self.controller.view.set_overlay_image(None, None, None)
         self.controller.view.hide_reheat_time_control()
+
+        if hasattr(self.controller.view, "hide_reheat_time_attention"):
+            self.controller.view.hide_reheat_time_attention()

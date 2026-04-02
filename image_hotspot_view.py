@@ -89,6 +89,26 @@ class ImageHotspotView(ctk.CTkFrame):
         self.circular_progress: Optional[CircularProgress] = None
         self.reheat_time_control: Optional[TimeAdjustControl] = None
 
+        self._reheat_attention_after_id: Optional[str] = None
+        self._reheat_attention_active: bool = False
+        self._reheat_attention_pulse_on: bool = False
+        self._last_reheat_seconds: int = 0
+        self._external_reheat_on_change: Optional[Callable[[int], None]] = None
+
+        self.reheat_attention_frame = ctk.CTkFrame(
+            self,
+            width=590,
+            height=104,
+            corner_radius=28,
+            fg_color="transparent",
+            bg_color="transparent",
+            border_width=3,
+            border_color="#D19A1A",
+        )
+        self.reheat_attention_frame.place(x=343, y=524)
+        self.reheat_attention_frame.lower()
+        self.reheat_attention_frame.place_forget()
+
         drawer_img = Image.open(f"{ASSETS_DIR}/drawer.png").convert("RGBA")
         drawer_img = drawer_img.resize((48, 48))
 
@@ -208,9 +228,9 @@ class ImageHotspotView(ctk.CTkFrame):
         s = size
 
         pts = [
-            (cx, cy - s),  # top
-            (cx - s, cy + s),  # bottom left
-            (cx + s, cy + s),  # bottom right
+            (cx, cy - s),
+            (cx - s, cy + s),
+            (cx + s, cy + s),
         ]
 
         draw.polygon(pts, outline=outline, fill=fill)
@@ -422,6 +442,16 @@ class ImageHotspotView(ctk.CTkFrame):
         if hasattr(self, "center_overlay_label"):
             self.center_overlay_label.place_forget()
 
+    def _wrapped_reheat_on_change(self, secs: int) -> None:
+        previous = self._last_reheat_seconds
+        self._last_reheat_seconds = secs
+
+        if self._reheat_attention_active and secs > previous:
+            self.hide_reheat_time_attention()
+
+        if callable(self._external_reheat_on_change):
+            self._external_reheat_on_change(secs)
+
     def show_reheat_time_control(
         self,
         initial_seconds: int = 30,
@@ -429,6 +459,9 @@ class ImageHotspotView(ctk.CTkFrame):
         max_seconds: int = 120,
         on_change: Optional[Callable[[int], None]] = None,
     ) -> None:
+        self._external_reheat_on_change = on_change
+        self._last_reheat_seconds = initial_seconds
+
         if self.reheat_time_control is None:
             self.reheat_time_control = TimeAdjustControl(
                 self,
@@ -437,21 +470,97 @@ class ImageHotspotView(ctk.CTkFrame):
                 min_seconds=min_seconds,
                 max_seconds=max_seconds,
                 initial_seconds=initial_seconds,
-                on_change=on_change,
+                on_change=self._wrapped_reheat_on_change,
             )
         else:
             self.reheat_time_control.configure_range(
                 min_seconds=min_seconds, max_seconds=max_seconds, step_seconds=15
             )
-            self.reheat_time_control._on_change = on_change  # type: ignore[attr-defined]
+            self.reheat_time_control._on_change = self._wrapped_reheat_on_change  # type: ignore[attr-defined]
             self.reheat_time_control.set_seconds(initial_seconds)
 
         self.reheat_time_control.place(relx=0.5, rely=0.72, anchor="center")
         self.reheat_time_control.lift()
 
+        if self._reheat_attention_active:
+            self.reheat_attention_frame.lift()
+            self.reheat_attention_frame.tkraise()
+            if self.reheat_time_control is not None:
+                self.reheat_time_control.lift()
+                self.reheat_time_control.tkraise()
+
     def hide_reheat_time_control(self) -> None:
         if self.reheat_time_control is not None:
             self.reheat_time_control.place_forget()
+        self.hide_reheat_time_attention()
+
+    def show_reheat_time_attention(self) -> None:
+        if self.reheat_time_control is None:
+            return
+
+        # Already flashing; do not start another after() chain
+        if (
+            self._reheat_attention_active
+            and self._reheat_attention_after_id is not None
+        ):
+            self.reheat_attention_frame.lift()
+            self.reheat_attention_frame.tkraise()
+            self.reheat_time_control.lift()
+            self.reheat_time_control.tkraise()
+            return
+
+        self._reheat_attention_active = True
+        self._reheat_attention_pulse_on = False
+
+        self.reheat_attention_frame.place(x=343, y=524)
+        self.reheat_attention_frame.lift()
+        self.reheat_attention_frame.tkraise()
+
+        self.reheat_time_control.lift()
+        self.reheat_time_control.tkraise()
+
+        self._pulse_reheat_time_attention()
+
+    def hide_reheat_time_attention(self) -> None:
+        self._reheat_attention_active = False
+
+        if self._reheat_attention_after_id is not None:
+            try:
+                self.after_cancel(self._reheat_attention_after_id)
+            except Exception:
+                pass
+            self._reheat_attention_after_id = None
+
+        self.reheat_attention_frame.place_forget()
+
+    def _pulse_reheat_time_attention(self) -> None:
+        if not self._reheat_attention_active:
+            return
+
+        self._reheat_attention_pulse_on = not self._reheat_attention_pulse_on
+
+        if self._reheat_attention_pulse_on:
+            border_color = "#FFB700"  # brighter, more yellow-orange
+            border_width = 6
+        else:
+            border_color = "#8A2E00"  # ember orange
+            border_width = 3
+
+        self.reheat_attention_frame.configure(
+            border_color=border_color,
+            border_width=border_width,
+        )
+
+        self.reheat_attention_frame.lift()
+        self.reheat_attention_frame.tkraise()
+
+        if self.reheat_time_control is not None:
+            self.reheat_time_control.lift()
+            self.reheat_time_control.tkraise()
+
+        self._reheat_attention_after_id = self.after(
+            750, self._pulse_reheat_time_attention
+        )
 
     def get_reheat_seconds(self) -> int:
         if self.reheat_time_control is None:
