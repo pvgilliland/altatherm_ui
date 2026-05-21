@@ -476,6 +476,7 @@ class ImageHotspotView(ctk.CTkFrame):
         min_seconds: int = 0,
         max_seconds: int = 120,
         on_change: Optional[Callable[[int], None]] = None,
+        font_size=28,
     ) -> None:
         self._external_reheat_on_change = on_change
         self._last_reheat_seconds = initial_seconds
@@ -483,12 +484,13 @@ class ImageHotspotView(ctk.CTkFrame):
         if self.reheat_time_control is None:
             self.reheat_time_control = TimeAdjustControl(
                 self,
-                label_text="Reheat Time:",
+                label_text="Time:",
                 step_seconds=15,
                 min_seconds=min_seconds,
                 max_seconds=max_seconds,
                 initial_seconds=initial_seconds,
                 on_change=self._wrapped_reheat_on_change,
+                font_size=font_size,
             )
         else:
             self.reheat_time_control.configure_range(
@@ -497,7 +499,7 @@ class ImageHotspotView(ctk.CTkFrame):
             self.reheat_time_control._on_change = self._wrapped_reheat_on_change  # type: ignore[attr-defined]
             self.reheat_time_control.set_seconds(initial_seconds)
 
-        self.reheat_time_control.place(relx=0.5, rely=0.72, anchor="center")
+        self.reheat_time_control.place(relx=0.5, rely=0.48, anchor="center")
         self.reheat_time_control.lift()
 
         if self._reheat_attention_active:

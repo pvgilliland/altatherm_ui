@@ -1,5 +1,5 @@
 {
-  "description": "Program 6",
+  "description": "Program 42",
   "zone_sequences": [
     {
       "name": "Zone1",
@@ -7,7 +7,7 @@
       "steps": [
         {
           "power": 50,
-          "duration": 11.0
+          "duration": 10.0
         },
         {
           "power": 0,
@@ -28,8 +28,8 @@
       "index": 1,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 55,
+          "duration": 27.0
         },
         {
           "power": 0,
@@ -178,5 +178,5 @@
       ]
     }
   ],
-  "total_time": "00:11"
+  "total_time": "00:27"
 }

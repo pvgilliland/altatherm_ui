@@ -1,25 +1,25 @@
 {
-  "description": "Program 6",
+  "description": "Program 40",
   "zone_sequences": [
     {
       "name": "Zone1",
       "index": 0,
       "steps": [
         {
-          "power": 50,
-          "duration": 11.0
+          "power": 80,
+          "duration": 17
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -29,19 +29,19 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -51,19 +51,19 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -73,19 +73,19 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -95,19 +95,19 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -117,19 +117,19 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -139,19 +139,19 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     },
@@ -161,22 +161,22 @@
       "steps": [
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 0
         }
       ]
     }
   ],
-  "total_time": "00:11"
+  "total_time": "00:17"
 }

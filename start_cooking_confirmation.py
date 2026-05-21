@@ -33,6 +33,12 @@ class StartCookingConfirmation:
             3: ("food.png", "Item 4"),
             4: ("food.png", "Item 5"),
             5: ("Reheat.png", "Reheat"),
+            6: ("food.png", "Item 7"),
+            7: ("food.png", "Item 8"),
+            8: ("food.png", "Item 9"),
+            9: ("food.png", "Item 10"),
+            10: ("food.png", "Item 11"),
+            11: ("food.png", "Item 12"),
         }
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()

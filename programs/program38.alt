@@ -1,13 +1,13 @@
 {
-  "description": "Program 6",
+  "description": "Program 38",
   "zone_sequences": [
     {
       "name": "Zone1",
       "index": 0,
       "steps": [
         {
-          "power": 50,
-          "duration": 11.0
+          "power": 0,
+          "duration": 0.0
         },
         {
           "power": 0,
@@ -160,8 +160,8 @@
       "index": 7,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 21,
+          "duration": 1027.0
         },
         {
           "power": 0,
@@ -178,5 +178,5 @@
       ]
     }
   ],
-  "total_time": "00:11"
+  "total_time": "17:07"
 }

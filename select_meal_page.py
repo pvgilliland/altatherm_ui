@@ -279,6 +279,11 @@ class SelectMealPage:
         if not self.controller:
             return
 
+        # Reheat item
+        if meal_index == 5:
+            self.controller.show_ReheatPage()
+            return
+
         if self.from_info:
             self.controller.show_StartCookingConfirmation()
         else:

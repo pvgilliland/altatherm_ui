@@ -11,7 +11,7 @@
   "use_sound": true,
   "oven_testing_power": 80,
   "manual_cook": {
-    "minute": 0,
+    "minute": 1,
     "second": 30,
     "power": 100
   },

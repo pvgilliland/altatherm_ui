@@ -21,6 +21,7 @@ class TimeAdjustControl(ctk.CTkFrame):
         max_seconds: int = 120,
         initial_seconds: int = 30,
         on_change: Optional[Callable[[int], None]] = None,
+        font_size: int = 28,
         **kwargs,
     ):
         super().__init__(master, fg_color="black", bg_color="black", **kwargs)
@@ -41,9 +42,9 @@ class TimeAdjustControl(ctk.CTkFrame):
         gold = "#7A5018"
         text_white = "#FFFFFF"
 
-        label_font = ctk.CTkFont(family="Poppins", size=28, weight="normal")
-        value_font = ctk.CTkFont(family="Poppins", size=28, weight="normal")
-        btn_font = ctk.CTkFont(family="Poppins", size=32, weight="bold")
+        label_font = ctk.CTkFont(family="Poppins", size=font_size, weight="normal")
+        value_font = ctk.CTkFont(family="Poppins", size=font_size, weight="normal")
+        btn_font = ctk.CTkFont(family="Consolas", size=font_size + 4, weight="bold")
 
         self.desc_label = ctk.CTkLabel(
             self,
@@ -64,7 +65,7 @@ class TimeAdjustControl(ctk.CTkFrame):
             border_color=gold,
             hover_color="black",
             text_color=text_white,
-            font=ctk.CTkFont(family="Poppins", size=44, weight="bold"),
+            font=btn_font,
             anchor="n",
             command=lambda: self._adjust(-self._step),
         )

@@ -18,6 +18,7 @@ from start_cooking_confirmation import StartCookingConfirmation
 from cooking_page import CookingPage
 from cooking_finished_page import CookingFinishedPage
 from cooking_paused_page import CookingPausedPage
+from reheat_page import ReheatPage
 
 from SerialService import SerialService
 from DoorSafety import DoorSafety
@@ -204,6 +205,7 @@ class MultiPageController:
         self.cooking_page = CookingPage(controller=self)
         self.cooking_finished_page = CookingFinishedPage(controller=self)
         self.cooking_paused_page = CookingPausedPage(controller=self)
+        self.reheat_page = ReheatPage(controller=self)
 
         self._current_page: Optional[Any] = None
 
@@ -664,6 +666,9 @@ class MultiPageController:
                 page.on_show(program_number)
         except Exception as e:
             print(f"[MultiPageController] SequenceProgramPage.on_show failed: {e}")
+
+    def show_ReheatPage(self) -> None:
+        self.show_page(self.reheat_page)
 
     def back_to_SequenceProgramPage(self) -> None:
         if not self.is_admin:
