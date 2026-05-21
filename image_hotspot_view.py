@@ -105,7 +105,7 @@ class ImageHotspotView(ctk.CTkFrame):
             border_width=3,
             border_color="#D19A1A",
         )
-        self.reheat_attention_frame.place(x=343, y=524)
+        self.reheat_attention_frame.place(x=343, y=332)
         self.reheat_attention_frame.lower()
         self.reheat_attention_frame.place_forget()
 
@@ -532,7 +532,7 @@ class ImageHotspotView(ctk.CTkFrame):
         self._reheat_attention_active = True
         self._reheat_attention_pulse_on = False
 
-        self.reheat_attention_frame.place(x=343, y=524)
+        self.reheat_attention_frame.place(x=343, y=332)
         self.reheat_attention_frame.lift()
         self.reheat_attention_frame.tkraise()
 

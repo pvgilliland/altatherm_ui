@@ -75,17 +75,9 @@ class ReheatPage:
         self.controller.show_HomePage()
 
     def on_question_clicked(self):
-        print("ReheatPage: Question clicked")
-
+        print("ReheatPage: Question clicked. What to show here?")
         if not self.controller:
             return
-
-        self.controller.shared_data["show_reheat_time_attention"] = True
-
-        view = getattr(self.controller, "view", None)
-
-        if view and hasattr(view, "show_reheat_time_attention"):
-            view.show_reheat_time_attention()
 
     def on_start_clicked(self):
         print("ReheatPage: Start clicked")
