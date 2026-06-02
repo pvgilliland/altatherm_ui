@@ -54,6 +54,8 @@ from TimePage import TimePage
 from SelectProgramPage import SelectProgramPage
 from DiagnosticsPage import DiagnosticsPage
 from DiagnosticsPage2 import DiagnosticsPage2
+from wifi_settings_page import WifiSettingsPage
+from software_update_page import SoftwareUpdatePage
 
 logger = logging.getLogger("MultiPageController")
 
@@ -267,6 +269,24 @@ class MultiPageController:
         self._current_page = page_obj
         self.view.set_page(page_obj)
 
+    def show_UpdatePage(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_UpdatePage called in normal mode; ignoring."
+            )
+            return
+
+        self._show_admin_page(WifiSettingsPage)
+
+    def show_SoftwareUpdatePage(self) -> None:
+        if not self.is_admin:
+            print(
+                "[MultiPageController] show_SoftwareUpdatePage called in normal mode; ignoring."
+            )
+            return
+
+        self._show_admin_page(SoftwareUpdatePage)
+
     # ------------------------------------------------------------------
     # Admin UI plumbing
     # ------------------------------------------------------------------
@@ -398,6 +418,26 @@ class MultiPageController:
                 self.admin_container, self, "Phase Time + Power (TODO)"
             )
         self._register_admin_page(PhaseTimePowerPage, frame)
+
+        # Wi-Fi Settings page
+        try:
+            frame = WifiSettingsPage(self.admin_container, controller=self)
+        except Exception as e:
+            print(f"[Admin] WifiSettingsPage construct failed: {e}")
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Wi-Fi Settings (TODO)"
+            )
+        self._register_admin_page(WifiSettingsPage, frame)
+
+        # Software Update page
+        try:
+            frame = SoftwareUpdatePage(self.admin_container, controller=self)
+        except Exception as e:
+            print(f"[Admin] SoftwareUpdatePage construct failed: {e}")
+            frame = _AdminPlaceholderPage(
+                self.admin_container, self, "Software Update (TODO)"
+            )
+        self._register_admin_page(SoftwareUpdatePage, frame)
 
         # Backward-compat convenience (some pages do controller.pages.get(<Class>))
         self.pages = self.admin_pages

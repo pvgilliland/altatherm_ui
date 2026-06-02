@@ -1,0 +1,23 @@
+Wi-Fi Settings
+    ↓
+User connects to Wi-Fi
+    ↓
+If connection succeeds, open Software Update page
+    ↓
+Software Update page downloads update list from server
+    ↓
+User selects ZIP file
+    ↓
+User clicks Update
+    ↓
+App downloads ZIP
+    ↓
+Validate ZIP
+    ↓
+Backup existing HMI folder
+    ↓
+Extract update to temp folder
+    ↓
+Copy files into HMI folder
+    ↓
+Restart HMI

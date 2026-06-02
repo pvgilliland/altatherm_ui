@@ -100,7 +100,7 @@ class HomePage_admin(ctk.CTkFrame):
         button_frame.grid_columnconfigure(0, weight=1)
 
         # ----------------------------
-        # Shared button sizing (IDENTICAL for all 5)
+        # Shared button sizing (IDENTICAL for all 6)
         # ----------------------------
         btn_w = csx(300, 300)
         btn_h = csy(240, 240)
@@ -164,8 +164,8 @@ class HomePage_admin(ctk.CTkFrame):
         )
 
         # ----------------------------
-        # Row 1 (BOTTOM): 2 buttons centered and closer together
-        # [flex][btn][gap][btn][flex]
+        # Row 1 (BOTTOM): 3 buttons centered to match the top row
+        # [flex][btn][gap][btn][gap][btn][flex]
         # ----------------------------
         bottom_row = ctk.CTkFrame(button_frame, fg_color="transparent")
         bottom_row.grid(row=1, column=0, sticky="nsew")
@@ -174,22 +174,30 @@ class HomePage_admin(ctk.CTkFrame):
         bottom_row.grid_columnconfigure(1, weight=0)
         bottom_row.grid_columnconfigure(2, weight=0)
         bottom_row.grid_columnconfigure(3, weight=0)
-        bottom_row.grid_columnconfigure(4, weight=1)
+        bottom_row.grid_columnconfigure(4, weight=0)
+        bottom_row.grid_columnconfigure(5, weight=0)
+        bottom_row.grid_columnconfigure(6, weight=1)
 
         self.diagnostics_button = ctk.CTkButton(
             bottom_row, text="Diagnostics", command=self.on_diagnostics, **btn_kwargs
+        )
+        self.update_button = ctk.CTkButton(
+            bottom_row, text="Update", command=self.on_update, **btn_kwargs
         )
         self.exit_admin_button = ctk.CTkButton(
             bottom_row, text="Exit Admin", command=self.on_exit_admin, **btn_kwargs
         )
 
-        center_gap = csx(60, 80)
+        bottom_gap = csx(55, 75)
 
         self.diagnostics_button.grid(
-            row=0, column=1, padx=(pad_x, center_gap // 2), pady=pad_y, sticky="n"
+            row=0, column=1, padx=(pad_x, bottom_gap // 2), pady=pad_y, sticky="n"
+        )
+        self.update_button.grid(
+            row=0, column=3, padx=(bottom_gap // 2, bottom_gap // 2), pady=pad_y, sticky="n"
         )
         self.exit_admin_button.grid(
-            row=0, column=3, padx=(center_gap // 2, pad_x), pady=pad_y, sticky="n"
+            row=0, column=5, padx=(bottom_gap // 2, pad_x), pady=pad_y, sticky="n"
         )
 
         # ----------------------------
@@ -251,6 +259,13 @@ class HomePage_admin(ctk.CTkFrame):
     def on_diagnostics(self) -> None:
         play_click()
         self.controller.show_DiagnosticsPage()
+
+    def on_update(self) -> None:
+        play_click()
+        if hasattr(self.controller, "show_UpdatePage"):
+            self.controller.show_UpdatePage()
+        else:
+            print("[HomePage_admin] show_UpdatePage() is not implemented in controller")
 
     def on_exit_admin(self) -> None:
         play_click()
