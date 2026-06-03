@@ -169,6 +169,9 @@ class SoftwareUpdatePage(ctk.CTkFrame):
         self.update_buttons.clear()
         self.selected_update = None
 
+    def on_show(self):
+        self.load_updates_threaded()
+
     # -------------------------------------------------------------------------
     # Source selection
     # -------------------------------------------------------------------------
