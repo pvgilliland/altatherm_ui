@@ -9,9 +9,12 @@ import tempfile
 import threading
 import traceback
 from pathlib import Path
+from typing import Literal
 
 import requests
 import customtkinter as ctk
+
+from utilities import list_usb_drives
 
 # This must point directly to the JSON file, not just the folder.
 UPDATE_LIST_URL = "https://tallywatcherhrc.com/altatherm_hmi_updates/index.json"
@@ -21,10 +24,6 @@ UPDATE_LIST_URL = "https://tallywatcherhrc.com/altatherm_hmi_updates/index.json"
 # TEST PATHS
 # -----------------------------------------------------------------------------
 # These paths are safe for testing on Windows and Raspberry Pi.
-# tempfile.gettempdir() returns something like:
-#   Windows: C:\Users\<user>\AppData\Local\Temp
-#   Linux/Raspberry Pi: /tmp
-#
 # For the real Raspberry Pi install, replace HMI_INSTALL_FOLDER with your real
 # HMI application folder, for example:
 #   HMI_INSTALL_FOLDER = Path("/home/pvgilliland/projects/altatherm_ui")
@@ -35,46 +34,89 @@ HMI_INSTALL_FOLDER = BASE_TEMP_FOLDER / "altatherm_ui"
 BACKUP_FOLDER = BASE_TEMP_FOLDER / "hmi_backups"
 DOWNLOAD_FOLDER = BASE_TEMP_FOLDER / "hmi_downloads"
 
+UpdateSource = Literal["web", "thumb_drive"]
+
 
 class SoftwareUpdatePage(ctk.CTkFrame):
-    def __init__(self, parent, controller=None):
+    def __init__(
+        self,
+        parent,
+        controller=None,
+        update_source: UpdateSource = "web",
+    ):
         super().__init__(parent, fg_color="#DAFAFF")
 
         self.controller = controller
+        self.update_source = update_source
         self.selected_update: dict | None = None
         self.update_buttons: list[ctk.CTkButton] = []
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=1)
 
         ctk.CTkLabel(
             self,
             text="Software Update",
             font=("Arial", 24, "bold"),
             text_color="#89C8F8",
-        ).grid(row=0, column=0, pady=20)
+        ).grid(row=0, column=0, pady=(20, 8))
+
+        source_frame = ctk.CTkFrame(self, fg_color="#DAFAFF")
+        source_frame.grid(row=1, column=0, pady=(0, 8))
+
+        ctk.CTkLabel(
+            source_frame,
+            text="Update Source:",
+            font=("Arial", 16, "bold"),
+            text_color="#3776C3",
+        ).grid(row=0, column=0, padx=(0, 12))
+
+        self.source_selector = ctk.CTkSegmentedButton(
+            source_frame,
+            values=["Web", "Thumb Drive"],
+            command=self.on_source_changed,
+            width=320,
+            height=42,
+        )
+        self.source_selector.grid(row=0, column=1)
 
         self.file_frame = ctk.CTkScrollableFrame(
             self,
-            label_text="Available Update Files",
+            label_text="",
             label_text_color="#89C8F8",
             width=760,
             height=280,
         )
-        self.file_frame.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
+        self.file_frame.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
         self.file_frame.grid_columnconfigure(0, weight=1)
+
+        # Initialize the segmented button and frame label from the ctor argument.
+        # This must happen after self.file_frame exists and before load_updates_threaded().
+        if self.update_source == "thumb_drive":
+            self.source_selector.set("Thumb Drive")
+            self.file_frame.configure(
+                label_text="Available Thumb Drive Update Files"
+            )
+            initial_status = "Scanning thumb drive for ZIP files..."
+        else:
+            self.update_source = "web"
+            self.source_selector.set("Web")
+            self.file_frame.configure(
+                label_text="Available Web Update Files"
+            )
+            initial_status = "Loading web update list..."
 
         self.status_label = ctk.CTkLabel(
             self,
-            text="Loading update list...",
+            text=initial_status,
             font=("Arial", 18, "bold"),
             text_color="#3776C3",
             wraplength=760,
         )
-        self.status_label.grid(row=2, column=0, pady=10)
+        self.status_label.grid(row=3, column=0, pady=10)
 
         button_frame = ctk.CTkFrame(self, fg_color="#DAFAFF")
-        button_frame.grid(row=3, column=0, pady=10)
+        button_frame.grid(row=4, column=0, pady=10)
 
         self.refresh_button = ctk.CTkButton(
             button_frame,
@@ -116,22 +158,42 @@ class SoftwareUpdatePage(ctk.CTkFrame):
         self.refresh_button.configure(state=state)
         self.update_button.configure(state=state)
         self.back_button.configure(state=state)
+        self.source_selector.configure(state=state)
 
     def safe_after_status(self, text: str):
-        """
-        Thread-safe status update.
-
-        This avoids this bad pattern:
-            self.after(0, lambda: self.set_status(f"Error: {ex}"))
-
-        Exception variables like ex are cleared after the except block exits,
-        so the lambda can fail later with:
-            NameError: free variable 'ex' referenced before assignment
-        """
         self.after(0, lambda msg=text: self.set_status(msg))
 
     def safe_after_busy(self, busy: bool):
         self.after(0, lambda b=busy: self.set_busy(b))
+
+    def clear_update_buttons(self):
+        for btn in self.update_buttons:
+            btn.destroy()
+        self.update_buttons.clear()
+        self.selected_update = None
+
+    # -------------------------------------------------------------------------
+    # Source selection
+    # -------------------------------------------------------------------------
+    def on_source_changed(self, value: str):
+        self.update_source = "thumb_drive" if value == "Thumb Drive" else "web"
+
+        if self.update_source == "web":
+            self.file_frame.configure(label_text="Available Web Update Files")
+        else:
+            self.file_frame.configure(label_text="Available Thumb Drive Update Files")
+
+        self.load_updates_threaded()
+
+    def set_update_source(self, source: UpdateSource):
+        """
+        Optional controller hook.
+        Example:
+            page.set_update_source("thumb_drive")
+        """
+        self.update_source = source
+        self.source_selector.set("Thumb Drive" if source == "thumb_drive" else "Web")
+        self.on_source_changed("Thumb Drive" if source == "thumb_drive" else "Web")
 
     # -------------------------------------------------------------------------
     # Load update list
@@ -141,48 +203,118 @@ class SoftwareUpdatePage(ctk.CTkFrame):
 
     def load_updates(self):
         self.safe_after_busy(True)
-        self.safe_after_status("Loading update list...")
 
         try:
-            response = requests.get(UPDATE_LIST_URL, timeout=10)
-            response.raise_for_status()
-
-            updates = response.json()
-
-            if not isinstance(updates, list):
-                raise RuntimeError("index.json must contain a JSON array/list")
-
-            self.after(0, lambda u=updates: self.populate_update_list(u))
-            self.safe_after_status("Select an update file")
+            if self.update_source == "web":
+                self.safe_after_status("Loading web update list...")
+                updates = self.load_web_updates()
+                self.after(0, lambda u=updates: self.populate_update_list(u))
+                self.safe_after_status("Select a web update file")
+            else:
+                self.safe_after_status("Scanning thumb drive for ZIP files...")
+                updates = self.load_thumb_drive_updates()
+                self.after(0, lambda u=updates: self.populate_update_list(u))
+                self.safe_after_status("Select a thumb drive update file")
 
         except Exception as ex:
             traceback.print_exc()
             error_msg = str(ex)
-            self.safe_after_status(f"Failed to load updates: {error_msg}")
+            if self.update_source == "web":
+                self.safe_after_status(f"Failed to load web updates: {error_msg}")
+            else:
+                self.safe_after_status(
+                    f"Failed to load thumb drive updates: {error_msg}"
+                )
 
         finally:
             self.safe_after_busy(False)
 
-    def populate_update_list(self, updates: list[dict]):
-        for btn in self.update_buttons:
-            btn.destroy()
+    def load_web_updates(self) -> list[dict]:
+        response = requests.get(UPDATE_LIST_URL, timeout=10)
+        response.raise_for_status()
 
-        self.update_buttons.clear()
-        self.selected_update = None
+        updates = response.json()
 
-        row = 0
+        if not isinstance(updates, list):
+            raise RuntimeError("index.json must contain a JSON array/list")
 
+        web_updates: list[dict] = []
         for update in updates:
             if not isinstance(update, dict):
                 continue
 
-            name = update.get("name", "")
-            url = update.get("url", "")
+            name = str(update.get("name", "")).strip()
+            url = str(update.get("url", "")).strip()
 
             if not name or not url:
                 continue
 
             if not name.lower().endswith(".zip"):
+                continue
+
+            web_updates.append(
+                {
+                    "source": "web",
+                    "name": name,
+                    "url": url,
+                    "version": str(update.get("version", "")).strip(),
+                    "notes": str(update.get("notes", "")).strip(),
+                }
+            )
+
+        return web_updates
+
+    def load_thumb_drive_updates(self) -> list[dict]:
+        mountpoints = list_usb_drives()
+
+        if not mountpoints:
+            return []
+
+        thumb_updates: list[dict] = []
+        seen_paths: set[Path] = set()
+
+        for mountpoint in mountpoints:
+            root = Path(mountpoint)
+            if not root.exists() or not root.is_dir():
+                continue
+
+            # Search the root and one folder level below. This allows either:
+            #   USB_DRIVE/update.zip
+            #   USB_DRIVE/updates/update.zip
+            candidates = list(root.glob("*.zip"))
+            candidates.extend(root.glob("*/*.zip"))
+
+            for zip_path in candidates:
+                try:
+                    zip_path = zip_path.resolve()
+                except Exception:
+                    zip_path = zip_path.absolute()
+
+                if zip_path in seen_paths:
+                    continue
+                seen_paths.add(zip_path)
+
+                thumb_updates.append(
+                    {
+                        "source": "thumb_drive",
+                        "name": zip_path.name,
+                        "path": str(zip_path),
+                        "version": "",
+                        "notes": str(zip_path.parent),
+                    }
+                )
+
+        thumb_updates.sort(key=lambda u: u["name"].lower())
+        return thumb_updates
+
+    def populate_update_list(self, updates: list[dict]):
+        self.clear_update_buttons()
+
+        row = 0
+
+        for update in updates:
+            name = update.get("name", "")
+            if not name or not name.lower().endswith(".zip"):
                 continue
 
             display_text = name
@@ -208,11 +340,16 @@ class SoftwareUpdatePage(ctk.CTkFrame):
             row += 1
 
         if not self.update_buttons:
-            self.set_status("No ZIP update files found in index.json")
+            if self.update_source == "web":
+                self.set_status("No ZIP update files found in index.json")
+            else:
+                self.set_status("No ZIP update files found on thumb drive")
 
     def select_update(self, update: dict):
         self.selected_update = update
-        self.set_status(f"Selected: {update.get('name', '')}")
+        source = update.get("source", "")
+        label = "Web" if source == "web" else "Thumb Drive"
+        self.set_status(f"Selected {label}: {update.get('name', '')}")
 
     # -------------------------------------------------------------------------
     # Run update
@@ -230,7 +367,7 @@ class SoftwareUpdatePage(ctk.CTkFrame):
         try:
             self.ensure_test_install_folder_exists()
 
-            zip_path = self.download_update()
+            zip_path = self.get_selected_zip_path()
             self.validate_zip(zip_path)
             backup_path = self.backup_existing_install()
             self.install_zip(zip_path)
@@ -264,6 +401,23 @@ class SoftwareUpdatePage(ctk.CTkFrame):
                 encoding="utf-8",
             )
 
+    def get_selected_zip_path(self) -> Path:
+        if not self.selected_update:
+            raise RuntimeError("No update selected")
+
+        source = self.selected_update.get("source", "web")
+
+        if source == "thumb_drive":
+            path = self.selected_update.get("path", "")
+            if not path:
+                raise RuntimeError("Selected thumb drive update is missing path")
+
+            zip_path = Path(path)
+            self.safe_after_status(f"Using thumb drive ZIP: {zip_path.name}...")
+            return zip_path
+
+        return self.download_update()
+
     def download_update(self) -> Path:
         DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
@@ -295,10 +449,10 @@ class SoftwareUpdatePage(ctk.CTkFrame):
         self.safe_after_status("Validating ZIP...")
 
         if not zip_path.exists():
-            raise RuntimeError(f"Downloaded file does not exist: {zip_path}")
+            raise RuntimeError(f"ZIP file does not exist: {zip_path}")
 
         if not zipfile.is_zipfile(zip_path):
-            raise RuntimeError("Downloaded file is not a valid ZIP file")
+            raise RuntimeError(f"File is not a valid ZIP file: {zip_path}")
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             bad_file = zf.testzip()
@@ -383,7 +537,7 @@ class StandaloneSoftwareUpdateApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        page = SoftwareUpdatePage(self)
+        page = SoftwareUpdatePage(self, update_source="web")
         page.grid(row=0, column=0, sticky="nsew")
 
 

@@ -20,6 +20,7 @@ from cooking_finished_page import CookingFinishedPage
 from cooking_paused_page import CookingPausedPage
 from reheat_page import ReheatPage
 from update_method_dialog import UpdateMethodDialog
+from thumbdrive_hmi_install import ThumbDriveHmiInstallDialog
 
 from SerialService import SerialService
 from DoorSafety import DoorSafety
@@ -292,8 +293,14 @@ class MultiPageController:
         UpdateMethodDialog(
             parent=self.root,
             on_wifi_cloud=self.show_UpdatePage,
-            on_thumb_drive=self.show_SoftwareUpdatePage,
+            on_thumb_drive=self.show_thumb_drive_hmi_install_dialog,
         )
+
+    def show_thumb_drive_hmi_install_dialog(self):
+        if not self.is_admin:
+            return
+
+        self._show_admin_page("ThumbDriveSoftwareUpdatePage")
 
     # ------------------------------------------------------------------
     # Admin UI plumbing
@@ -446,6 +453,13 @@ class MultiPageController:
                 self.admin_container, self, "Software Update (TODO)"
             )
         self._register_admin_page(SoftwareUpdatePage, frame)
+
+        frame = SoftwareUpdatePage(
+            self.admin_container,
+            controller=self,
+            update_source="thumb_drive",
+        )
+        self._register_admin_page("ThumbDriveSoftwareUpdatePage", frame)
 
         # Backward-compat convenience (some pages do controller.pages.get(<Class>))
         self.pages = self.admin_pages
