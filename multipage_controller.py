@@ -19,6 +19,7 @@ from cooking_page import CookingPage
 from cooking_finished_page import CookingFinishedPage
 from cooking_paused_page import CookingPausedPage
 from reheat_page import ReheatPage
+from update_method_dialog import UpdateMethodDialog
 
 from SerialService import SerialService
 from DoorSafety import DoorSafety
@@ -286,6 +287,13 @@ class MultiPageController:
             return
 
         self._show_admin_page(SoftwareUpdatePage)
+
+    def show_update_method_dialog(self):
+        UpdateMethodDialog(
+            parent=self.root,
+            on_wifi_cloud=self.show_UpdatePage,
+            on_thumb_drive=self.show_SoftwareUpdatePage,
+        )
 
     # ------------------------------------------------------------------
     # Admin UI plumbing

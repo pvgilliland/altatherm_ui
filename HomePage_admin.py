@@ -194,7 +194,11 @@ class HomePage_admin(ctk.CTkFrame):
             row=0, column=1, padx=(pad_x, bottom_gap // 2), pady=pad_y, sticky="n"
         )
         self.update_button.grid(
-            row=0, column=3, padx=(bottom_gap // 2, bottom_gap // 2), pady=pad_y, sticky="n"
+            row=0,
+            column=3,
+            padx=(bottom_gap // 2, bottom_gap // 2),
+            pady=pad_y,
+            sticky="n",
         )
         self.exit_admin_button.grid(
             row=0, column=5, padx=(bottom_gap // 2, pad_x), pady=pad_y, sticky="n"
@@ -262,8 +266,8 @@ class HomePage_admin(ctk.CTkFrame):
 
     def on_update(self) -> None:
         play_click()
-        if hasattr(self.controller, "show_UpdatePage"):
-            self.controller.show_UpdatePage()
+        if hasattr(self.controller, "show_update_method_dialog"):
+            self.controller.show_update_method_dialog()
         else:
             print("[HomePage_admin] show_UpdatePage() is not implemented in controller")
 
