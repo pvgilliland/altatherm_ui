@@ -20,7 +20,6 @@ from cooking_finished_page import CookingFinishedPage
 from cooking_paused_page import CookingPausedPage
 from reheat_page import ReheatPage
 from update_method_dialog import UpdateMethodDialog
-from thumbdrive_hmi_install import ThumbDriveHmiInstallDialog
 
 from SerialService import SerialService
 from DoorSafety import DoorSafety
