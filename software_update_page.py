@@ -79,6 +79,7 @@ class SoftwareUpdatePage(ctk.CTkFrame):
             height=42,
         )
         self.source_selector.grid(row=0, column=1)
+        source_frame.grid_remove()
 
         self.file_frame = ctk.CTkScrollableFrame(
             self,
@@ -94,16 +95,12 @@ class SoftwareUpdatePage(ctk.CTkFrame):
         # This must happen after self.file_frame exists and before load_updates_threaded().
         if self.update_source == "thumb_drive":
             self.source_selector.set("Thumb Drive")
-            self.file_frame.configure(
-                label_text="Available Thumb Drive Update Files"
-            )
+            self.file_frame.configure(label_text="Available Thumb Drive Update Files")
             initial_status = "Scanning thumb drive for ZIP files..."
         else:
             self.update_source = "web"
             self.source_selector.set("Web")
-            self.file_frame.configure(
-                label_text="Available Web Update Files"
-            )
+            self.file_frame.configure(label_text="Available Web Update Files")
             initial_status = "Loading web update list..."
 
         self.status_label = ctk.CTkLabel(
