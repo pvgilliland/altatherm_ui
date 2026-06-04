@@ -76,13 +76,45 @@ class WindowsNetshWifiManager(BaseWifiManager):
             result.stdout = f"Wi-Fi adapter '{adapter}' is {result.stdout.strip()}"
         return result
 
+
+    def is_wifi_enabled(self) -> bool:
+        adapter = self.get_adapter_name()
+        if not adapter:
+            return False
+
+        script = f"(Get-NetAdapter -Name {adapter!r}).Status"
+        result = self._run_powershell(script)
+
+        if not result.ok:
+            return False
+
+        status = result.stdout.strip().lower()
+
+        print(f"WiFi Status = '{status}'")
+
+        return status == "up"
+
+
+
     def enable_wifi(self) -> CommandResult:
         adapter = self.get_adapter_name()
         if not adapter:
             return CommandResult(ok=False, stderr="No Windows Wi-Fi adapter found")
 
-        script = f"Enable-NetAdapter -Name {adapter!r} -Confirm:$false"
+        script = f"""
+        Enable-NetAdapter -Name {adapter!r} -Confirm:$false -ErrorAction SilentlyContinue
+        netsh interface set interface name={adapter!r} admin=enabled
+        """
+
         return self._run_powershell(script)
+    
+    # def enable_wifi(self) -> CommandResult:
+    #     adapter = self.get_adapter_name()
+    #     if not adapter:
+    #         return CommandResult(ok=False, stderr="No Windows Wi-Fi adapter found")
+
+    #     script = f"Enable-NetAdapter -Name {adapter!r} -Confirm:$false"
+    #     return self._run_powershell(script)
 
     def disable_wifi(self) -> CommandResult:
         adapter = self.get_adapter_name()

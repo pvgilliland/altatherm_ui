@@ -55,6 +55,9 @@ class BaseWifiManager:
 
     def get_adapter_name(self) -> Optional[str]:
         return None
+    
+    def is_wifi_enabled(self) -> bool:
+        raise NotImplementedError
 
 
 def get_wifi_manager() -> BaseWifiManager:

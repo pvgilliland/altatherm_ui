@@ -264,15 +264,18 @@ class WifiSettingsPage(ctk.CTkFrame):
 
     def set_busy(self, busy: bool):
         state = "disabled" if busy else "normal"
+
         for widget in (
-            self.enable_button,
-            self.disable_button,
             self.scan_button,
             self.connect_button,
             self.refresh_button,
             self.exit_button,
         ):
             widget.configure(state=state)
+
+        if busy:
+            self.enable_button.configure(state="disabled")
+            self.disable_button.configure(state="disabled")
 
     def set_status(self, text: str):
         self.status_label.configure(text=text)
@@ -290,7 +293,26 @@ class WifiSettingsPage(ctk.CTkFrame):
     def update_wifi_status_threaded(self):
         def worker():
             result = self.wifi.get_status()
-            self.after(0, lambda: self.show_result("Status", result))
+            enabled = self.wifi.is_wifi_enabled()
+
+            self.after(
+                0,
+                lambda: self.enable_button.configure(
+                    state="disabled" if enabled else "normal"
+                )
+            )
+
+            self.after(
+                0,
+                lambda: self.disable_button.configure(
+                    state="normal" if enabled else "disabled"
+                )
+            )
+
+            self.after(
+                0,
+                lambda: self.show_result("Status", result)
+            )
 
         self.run_worker(worker)
 
@@ -311,6 +333,8 @@ class WifiSettingsPage(ctk.CTkFrame):
             self.after(750, self.update_wifi_status_threaded)
 
         self.run_worker(worker)
+
+    
 
     def scan_wifi_threaded(self):
         def worker():

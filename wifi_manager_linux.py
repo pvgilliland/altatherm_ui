@@ -45,6 +45,11 @@ class LinuxNmcliWifiManager(BaseWifiManager):
         if result.ok:
             result.stdout = f"Wi-Fi radio is {result.stdout}"
         return result
+    
+
+    def is_wifi_enabled(self) -> bool:
+        result = self._run(["nmcli", "radio", "wifi"])
+        return result.ok and result.stdout.strip().lower() == "enabled"
 
     def enable_wifi(self) -> CommandResult:
         return self._run(["nmcli", "radio", "wifi", "on"])
