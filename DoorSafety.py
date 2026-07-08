@@ -1,6 +1,6 @@
 # DoorSafety.py, Singleton and a Model
 import threading
-from typing import Callable, List, Optional
+from typing import Callable
 
 # DoorListener: a callable (function) that takes a bool argument and returns None.
 DoorListener = Callable[[bool], None]  # (is_open)

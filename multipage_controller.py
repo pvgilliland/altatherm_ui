@@ -25,8 +25,6 @@ from SerialService import SerialService
 from DoorSafety import DoorSafety
 from hmi_consts import (
     ASSETS_DIR,
-    SETTINGS_DIR,
-    PROGRAMS_DIR,
     HMISizePos,
     HMIColors,
     __version__,
@@ -57,7 +55,6 @@ from DiagnosticsPage import DiagnosticsPage
 from DiagnosticsPage2 import DiagnosticsPage2
 from wifi_settings_page import WifiSettingsPage
 from software_update_page import SoftwareUpdatePage
-from RFIDSerialService import RFIDSerialService
 
 logger = logging.getLogger("MultiPageController")
 
@@ -151,17 +148,14 @@ class MultiPageController:
         # Serial + DoorSafety
         # ----------------------------
         # Oven controller serial
-        self.serial = SerialService(tk_root=root, port_hint="Curiosity Arduino")
+        self.oven_ctrl_serial = SerialService(tk_root=root, port_hint="Curiosity Arduino")
         try:
-            self.serial.start()
+            self.oven_ctrl_serial.start()
         except Exception as e:
             print("Serial start failed:", e)
 
         # RFID reader serial
-        self.rfid_serial = RFIDSerialService(
-            tk_root=root,
-            on_tag=self.on_rfid_tag
-        )
+        self.rfid_serial = SerialService(tk_root=root, port_hint="USB")
         try:
             self.rfid_serial.start()
         except Exception as e:
@@ -817,7 +811,7 @@ class MultiPageController:
                 self._cancel_fan_off_timer()
 
             cmd = f"Z{zone:02d}={power:03d}"
-            self.serial.send(cmd)
+            self.oven_ctrl_serial.send(cmd)
         except Exception:
             raise
         finally:
@@ -839,40 +833,40 @@ class MultiPageController:
             logger.info("Cook Cycle Ended")
         try:
             print("In serial_all_zones_off()")
-            self.serial.send("Z00=000")
+            self.oven_ctrl_serial.send("Z00=000")
             self._schedule_fan_off_after_delay()
         except Exception:
             pass
 
     def serial_get_thermistor(self):
-        self.serial.send("R")
+        self.oven_ctrl_serial.send("R")
 
     def serial_get_versions(self):
-        self.serial.send("I")
+        self.oven_ctrl_serial.send("I")
 
     def serial_get_IR_temp(self, sensor: int):
-        self.serial.send(f"T{sensor}")
+        self.oven_ctrl_serial.send(f"T{sensor}")
 
     def serial_get_door_switch(self):
-        self.serial.send("D")
+        self.oven_ctrl_serial.send("D")
 
     def serial_get_door_lock(self):
-        self.serial.send("L")
+        self.oven_ctrl_serial.send("L")
 
     def serial_door_lock(self, on: bool):
-        self.serial.send("L=" + ("1" if on else "0"))
+        self.oven_ctrl_serial.send("L=" + ("1" if on else "0"))
 
     def serial_get_fan(self):
-        self.serial.send("F")
+        self.oven_ctrl_serial.send("F")
 
     def serial_fan(self, on: bool):
-        self.serial.send("F=" + ("1" if on else "0"))
+        self.oven_ctrl_serial.send("F=" + ("1" if on else "0"))
 
     # ask the controller for the power supply zone voltages
     # returns "V=nn.n,nn.n,nn.n,nn.n,nn.n,nn.n,nn.n,nn.n\r" for the 8 zones
     def serial_power_supply_diagnostics(self):
-        self.serial.send("V")  # Get power supply zone voltages
-        self.serial.send("P")  # Get Fan current
+        self.oven_ctrl_serial.send("V")  # Get power supply zone voltages
+        self.oven_ctrl_serial.send("P")  # Get Fan current
 
     # ------------------------------------------------------------------
     # Cooking sequence lifecycle (unchanged from ProjectB)

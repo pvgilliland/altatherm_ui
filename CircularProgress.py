@@ -1,5 +1,4 @@
 import customtkinter as ctk
-import time
 
 
 class CircularProgress(ctk.CTkCanvas):

@@ -6,10 +6,8 @@ import customtkinter as ctk
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from hmi_consts import ASSETS_DIR
 
-from hotspots import Hotspot  # for type hints
 from CircularProgress import CircularProgress
 from time_adjust_control import TimeAdjustControl
-from hmi_consts import HMIColors
 from DoorSafety import DoorSafety
 
 

@@ -1,6 +1,6 @@
 # hotspots.py
 from dataclasses import dataclass
-from typing import Callable, Tuple, List
+from typing import Callable, Tuple
 
 Rect = Tuple[int, int, int, int]
 HotspotHandler = Callable[[], None]

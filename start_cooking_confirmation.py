@@ -1,15 +1,11 @@
 import json
 import os
 from typing import List
-import customtkinter as ctk
-from PIL import Image, ImageDraw
 from DoorSafety import DoorSafety
 from hotspots import Hotspot
 from hmi_consts import ASSETS_DIR, PROGRAMS_DIR
-from typing import Optional
 from SelectProgramPage import (
     load_program_into_sequence_collection,
-    save_program_from_sequence_collection,
 )
 
 

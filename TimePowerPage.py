@@ -2,7 +2,9 @@ import customtkinter as ctk
 from DoorSafety import DoorSafety
 from hmi_consts import HMIColors, HMISizePos, SETTINGS_DIR
 from ui_bits import COLOR_FG, COLOR_BLUE, StyledNumericInput, compute_two_card_layout
-import logging, json, os
+import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 

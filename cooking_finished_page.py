@@ -1,7 +1,5 @@
 import os
 from typing import List
-import customtkinter as ctk
-from PIL import Image, ImageDraw
 from hotspots import Hotspot
 
 

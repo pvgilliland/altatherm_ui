@@ -1,5 +1,6 @@
 # click_sound.py
-import os, sys, platform
+import os
+import sys
 from hmi_consts import ASSETS_DIR
 import pygame
 

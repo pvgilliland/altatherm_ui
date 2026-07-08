@@ -3,11 +3,9 @@ import os
 import time
 from typing import List, Optional
 
-import customtkinter as ctk
-from PIL import Image, ImageDraw
 
 from hotspots import Hotspot
-from hmi_consts import ASSETS_DIR, PROGRAMS_DIR
+from hmi_consts import PROGRAMS_DIR
 
 
 class CookingPage:

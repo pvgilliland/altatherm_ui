@@ -1,17 +1,17 @@
 from __future__ import annotations  # if you're on Python 3.8/3.9
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 from TimePowerPage import TimePowerPage  # only for typing; no runtime import
 
 import time
-from typing import Optional
 import customtkinter as ctk
 from PIL import Image
 
 from DoorSafety import DoorSafety
 from hmi_consts import ASSETS_DIR, HMIColors
 from hmi_consts import SETTINGS_DIR
-import os, json
+import os
+import json
 
 from CircularProgress_admin import CircularProgress_admin
 from SerialService import SerialService
@@ -277,12 +277,11 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             y=_bottom_y - 0 * _left_line_height,
         )
 
-        self.serial: Optional["SerialService"] = getattr(
-            self.controller, "serial", None
-        )
-        if self.serial:
-            self.serial.add_listener(self._on_serial_line)
-            print("have serial")
+        self.oven_ctrl_serial: SerialService = self.controller.oven_ctrl_serial
+    
+        if self.oven_ctrl_serial:
+            self.oven_ctrl_serial.add_listener(self._on_serial_line)
+            print("have oven_ctrl_serial")
 
         self.set_periodic_callback(self.on_read_controller_thermistors)
 

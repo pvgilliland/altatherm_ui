@@ -1,8 +1,6 @@
 # testpage.py
 import os
 from typing import List
-import customtkinter as ctk
-from PIL import Image, ImageDraw
 from hotspots import Hotspot
 
 
@@ -27,12 +25,12 @@ class PrepareForCookingPage1:
 
         self.hotspots: List[Hotspot] = [
             Hotspot(
-                f"back",
+                "back",
                 (84, 642, 154, 707),
                 self.on_back_clicked,  # ← capture parameter
             ),
             Hotspot(
-                f"forward",
+                "forward",
                 (1122, 642, 1220, 707),
                 self.on_forward_clicked,  # ← capture parameter
             ),

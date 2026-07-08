@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 import customtkinter as ctk
 from PIL import Image
-from typing import TYPE_CHECKING, Optional, Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
 
 from play_sound import play_click
 
@@ -17,7 +17,7 @@ from hmi_consts import HMISizePos
 from PeriodicTimer import PeriodicTimer
 
 from ui_bits import COLOR_NUMBERS, COLOR_BLUE, COLOR_FG
-from hmi_consts import ASSETS_DIR, SETTINGS_DIR, PROGRAMS_DIR
+from hmi_consts import ASSETS_DIR
 
 
 class HomePage_admin(ctk.CTkFrame):
@@ -28,9 +28,7 @@ class HomePage_admin(ctk.CTkFrame):
         self.controller: "MultiPageController" = controller
         self.shared_data: Dict[str, Any] = shared_data
 
-        self.serial: Optional["SerialService"] = getattr(
-            self.controller, "serial", None
-        )
+        self.oven_ctrl_serial: SerialService = self.controller.oven_ctrl_serial
 
         self._build_ui()
         self.add_log("HMI Started")
@@ -277,9 +275,9 @@ class HomePage_admin(ctk.CTkFrame):
 
     # ------------- Lifecycle -------------
     def on_close(self) -> None:
-        if self.serial:
+        if self.oven_ctrl_serial:
             try:
-                self.serial.remove_listener(self._on_serial_line)
+                self.oven_ctrl_serial.remove_listener(self._on_serial_line)
             except Exception:
                 pass
         self.destroy()

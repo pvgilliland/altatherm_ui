@@ -35,7 +35,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="(Diag 2) Cookpack Algorithm",
+            text="(Diag 2) Cookpack Algorithm / RFID Testing",
             text_color=COLOR_BLUE,
             font=("Arial", 20, "bold"),
         ).pack(pady=(4, 8))

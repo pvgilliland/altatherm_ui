@@ -1,4 +1,3 @@
-import customtkinter as ctk
 from typing import List
 
 from hotspots import Hotspot

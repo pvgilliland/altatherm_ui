@@ -1,4 +1,3 @@
-import tkinter as tk
 from typing import Optional, Callable
 import customtkinter as ctk
 

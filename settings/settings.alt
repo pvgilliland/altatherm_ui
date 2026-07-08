@@ -16,5 +16,9 @@
     "power": 100
   },
   "enable_array_temp_control": false,
-  "use_rfid": true
+  "use_rfid": true,
+  "fan_delay": {
+    "minute": 0,
+    "second": 5
+  }
 }

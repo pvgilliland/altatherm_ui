@@ -1,7 +1,8 @@
 import customtkinter as ctk
 from hmi_consts import HMIColors, HMISizePos, SETTINGS_DIR
 from ui_bits import COLOR_FG, COLOR_BLUE, StyledNumericInput
-import json, os
+import json
+import os
 
 SETTINGS_FILE = os.path.join(SETTINGS_DIR, "settings.alt")
 

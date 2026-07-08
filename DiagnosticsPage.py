@@ -1,7 +1,8 @@
 import time
 import customtkinter as ctk
 from typing import TYPE_CHECKING, Dict, Any, Optional
-import json, os
+import json
+import os
 
 # Same imports TimePowerPage uses for palette & sizing
 from MessageBoxPage import showerror, showinfo
@@ -42,9 +43,8 @@ class DiagnosticsPage(ctk.CTkFrame):
         self._psu_test_active: bool = False
 
         # Serial: use the shared SerialService owned by controller (no direct pyserial here)
-        self.serial: Optional["SerialService"] = getattr(
-            self.controller, "serial", None
-        )
+        self.oven_ctrl_serial: SerialService = self.controller.oven_ctrl_serial
+
         # NOTE: Do NOT add the listener here. We only listen while this page is shown.
         # Cleanup safety: if the widget is destroyed while showing, drop the listener.
         self.bind("<Destroy>", lambda e: self._remove_serial_listener_safe())
@@ -856,9 +856,9 @@ class DiagnosticsPage(ctk.CTkFrame):
             print(f"[DiagnosticsPage] Failed to restore settings: {e}")
 
         # Add serial listener when the page becomes visible
-        if self.serial:
+        if self.oven_ctrl_serial:
             try:
-                self.serial.add_listener(self._on_serial_line)
+                self.oven_ctrl_serial.add_listener(self._on_serial_line)
             except Exception as e:
                 print(f"[DiagnosticsPage] add_listener failed: {e}")
 
@@ -876,8 +876,8 @@ class DiagnosticsPage(ctk.CTkFrame):
 
     def _remove_serial_listener_safe(self):
         try:
-            if self.serial:
-                self.serial.remove_listener(self._on_serial_line)
+            if self.oven_ctrl_serial:
+                self.oven_ctrl_serial.remove_listener(self._on_serial_line)
         except Exception:
             pass
 

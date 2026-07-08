@@ -2,9 +2,10 @@
 import customtkinter as ctk
 from dataclasses import dataclass
 from typing import Any, Dict, List
-from hmi_consts import HMIColors, HMISizePos, ASSETS_DIR, PROGRAMS_DIR, LightOnly
+from hmi_consts import HMISizePos, ASSETS_DIR, PROGRAMS_DIR, LightOnly
 from PIL import Image
-import os, json
+import os
+import json
 from SequenceStructure import SequenceCollection  # uses to_dict/from_dict/load/save
 
 
