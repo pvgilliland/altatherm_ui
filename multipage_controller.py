@@ -57,6 +57,7 @@ from DiagnosticsPage import DiagnosticsPage
 from DiagnosticsPage2 import DiagnosticsPage2
 from wifi_settings_page import WifiSettingsPage
 from software_update_page import SoftwareUpdatePage
+from RFIDSerialService import RFIDSerialService
 
 logger = logging.getLogger("MultiPageController")
 
@@ -149,11 +150,22 @@ class MultiPageController:
         # ----------------------------
         # Serial + DoorSafety
         # ----------------------------
-        self.serial = SerialService(tk_root=root)
+        # Oven controller serial
+        self.serial = SerialService(tk_root=root, port_hint="Curiosity Arduino")
         try:
             self.serial.start()
         except Exception as e:
             print("Serial start failed:", e)
+
+        # RFID reader serial
+        self.rfid_serial = RFIDSerialService(
+            tk_root=root,
+            on_tag=self.on_rfid_tag
+        )
+        try:
+            self.rfid_serial.start()
+        except Exception as e:
+            print("RFID serial start failed:", e)
 
         DoorSafety.Instance().set_ui_root(root)
 
@@ -1044,6 +1056,14 @@ class MultiPageController:
             return self.shared_data.get(key, default)
         except Exception:
             return default
+        
+    def on_rfid_tag(self, tag_id: str):
+        print(f"[RFID] Tag read: {tag_id}")
+
+        self.shared_data["last_rfid_tag"] = tag_id
+
+        # Optional: route tag into meal/program selection later
+        # self.select_meal_page.load_from_rfid(tag_id)
 
     def exit_app(self) -> None:
         self.root.destroy()

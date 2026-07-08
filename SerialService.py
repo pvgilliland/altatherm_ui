@@ -111,13 +111,20 @@ class SerialService:
         if not ports:
             return None
         if self.port_hint:
+            hints = self.port_hint.lower().split()
             for p in ports:
-                if (
-                    self.port_hint in (p.device or "")
-                    or self.port_hint.lower() in (p.description or "").lower()
-                ):
+                desc = (p.description or "").lower()
+                if any(hint in desc for hint in hints):
                     return p.device
-        return ports[0].device
+   
+            available = "\n".join(f"{p.device}: {p.description}" for p in ports)
+
+            raise RuntimeError(
+                f"No serial port matched '{self.port_hint}'.\n"
+                f"Available ports:\n{available}")
+
+
+
 
     def _emit_line(self, line: str):
         if self.tk_root and hasattr(self.tk_root, "after"):

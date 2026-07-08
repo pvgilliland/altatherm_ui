@@ -1,10 +1,8 @@
 import customtkinter as ctk
 from typing import TYPE_CHECKING, Dict, Any
 import logging
-import json
-import os
 
-from hmi_consts import HMIColors, HMISizePos, SETTINGS_DIR
+from hmi_consts import HMIColors, HMISizePos
 from ui_bits import COLOR_FG, COLOR_BLUE
 from LabeledIntInput import LabeledIntInput
 from Settings import Settings
@@ -56,6 +54,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
         )
         body.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
         body.grid_columnconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
 
         # TSET
         self.tset_input = LabeledIntInput(
@@ -171,6 +170,21 @@ class DiagnosticsPage2(ctk.CTkFrame):
             row=5, column=0, sticky="w", padx=20, pady=(0, 20)
         )
 
+        # Enable RFID Reader
+        self.use_rfid_checkbox = ctk.CTkCheckBox(
+            body,
+            text="Enable RFID Reader",
+            font=lbl_font,
+            text_color=COLOR_BLUE,
+            fg_color=COLOR_BLUE,
+            hover_color=HMIColors.color_numbers,
+            border_color=COLOR_BLUE,
+            checkmark_color=COLOR_FG,
+        )
+        self.use_rfid_checkbox.grid(
+            row=0, column=1, sticky="w", padx=(40, 20), pady=(20, 10)
+        )
+
         # ----- Footer -----
         footer = ctk.CTkFrame(self, fg_color=COLOR_FG)
         footer.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 10))
@@ -225,6 +239,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
             )
             s.tc = self._clamp(int(self.tc_input.get()), 10, 8835)
             s.enable_cook_algorithm = bool(self.enable_cook_algorithm_checkbox.get())
+            s.use_rfid = bool(self.use_rfid_checkbox.get())
 
             s.save()
 
@@ -238,6 +253,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
             )
             self.shared_data["tc"] = s.tc
             self.shared_data["enable_cook_algorithm"] = s.enable_cook_algorithm
+            self.shared_data["use_rfid"] = s.use_rfid
 
         except Exception as e:
             print(f"[DiagnosticsPage2] Failed to save settings: {e}")
@@ -263,6 +279,11 @@ class DiagnosticsPage2(ctk.CTkFrame):
             else:
                 self.enable_cook_algorithm_checkbox.deselect()
 
+            if s.use_rfid:
+                self.use_rfid_checkbox.select()
+            else:
+                self.use_rfid_checkbox.deselect()
+
             self.shared_data["tset"] = s.tset
             self.shared_data["thys"] = s.thys
             self.shared_data["top_zones_correction_factor"] = (
@@ -273,6 +294,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
             )
             self.shared_data["tc"] = s.tc
             self.shared_data["enable_cook_algorithm"] = s.enable_cook_algorithm
+            self.shared_data["use_rfid"] = s.use_rfid
 
         except Exception as e:
             print(f"[DiagnosticsPage2] Failed to load settings: {e}")
@@ -297,39 +319,28 @@ class DiagnosticsPage2(ctk.CTkFrame):
             f"Top Zones Correction Factor={self.shared_data.get('top_zones_correction_factor')}, "
             f"Bottom Zones Correction Factor={self.shared_data.get('bottom_zones_correction_factor')}, "
             f"tC={self.shared_data.get('tc')}, "
-            f"Enable Cook Algorithm={self.shared_data.get('enable_cook_algorithm')}"
+            f"Enable Cook Algorithm={self.shared_data.get('enable_cook_algorithm')}, "
+            f"Use RFID={self.shared_data.get('use_rfid')}"
         )
 
     # Optional helpers
     def get_tset(self):
-        return int(self.shared_data.get("tset", self._load_tset()))
+        return int(self.shared_data.get("tset", 60))
 
     def get_thys(self):
-        return int(self.shared_data.get("thys", self._load_thys()))
+        return int(self.shared_data.get("thys", 5))
 
     def get_top_zones_correction_factor(self):
-        return int(
-            self.shared_data.get(
-                "top_zones_correction_factor",
-                self._load_top_zones_correction_factor(),
-            )
-        )
+        return int(self.shared_data.get("top_zones_correction_factor", 80))
 
     def get_bottom_zones_correction_factor(self):
-        return int(
-            self.shared_data.get(
-                "bottom_zones_correction_factor",
-                self._load_bottom_zones_correction_factor(),
-            )
-        )
+        return int(self.shared_data.get("bottom_zones_correction_factor", 80))
 
     def get_tc(self):
-        return int(self.shared_data.get("tc", self._load_tc()))
+        return int(self.shared_data.get("tc", 240))
 
     def get_enable_cook_algorithm(self):
-        return bool(
-            self.shared_data.get(
-                "enable_cook_algorithm",
-                self._load_enable_cook_algorithm(),
-            )
-        )
+        return bool(self.shared_data.get("enable_cook_algorithm", False))
+
+    def get_use_rfid(self):
+        return bool(self.shared_data.get("use_rfid", False))

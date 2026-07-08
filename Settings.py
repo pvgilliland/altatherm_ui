@@ -14,6 +14,7 @@ class Settings:
         self.tc = 240
         self.enable_cook_algorithm = False
         self.enable_array_temp_control = False
+        self.use_rfid = False
         self.load()
 
     @staticmethod
@@ -48,6 +49,7 @@ class Settings:
             self.enable_array_temp_control = data.get(
                 "enable_array_temp_control", self.enable_array_temp_control
             )
+            self.use_rfid = data.get("use_rfid", self.use_rfid)
 
         except Exception as e:
             print(f"[Settings] load failed: {e}")
@@ -72,6 +74,7 @@ class Settings:
             data["tc"] = self.tc
             data["enable_cook_algorithm"] = self.enable_cook_algorithm
             data["enable_array_temp_control"] = self.enable_array_temp_control
+            data["use_rfid"] = self.use_rfid
 
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)

@@ -11,9 +11,10 @@
   "use_sound": true,
   "oven_testing_power": 80,
   "manual_cook": {
-    "minute": 1,
-    "second": 30,
+    "minute": 0,
+    "second": 5,
     "power": 100
   },
-  "enable_array_temp_control": false
+  "enable_array_temp_control": false,
+  "use_rfid": true
 }
