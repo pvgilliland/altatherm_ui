@@ -2,6 +2,7 @@ import customtkinter as ctk
 from typing import TYPE_CHECKING, Dict, Any
 import logging
 
+from SerialService import SerialService
 from hmi_consts import HMIColors, HMISizePos
 from ui_bits import COLOR_FG, COLOR_BLUE
 from LabeledIntInput import LabeledIntInput
@@ -25,6 +26,9 @@ class DiagnosticsPage2(ctk.CTkFrame):
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
         self.grid_columnconfigure(0, weight=1)
+
+         # Serial: use the shared SerialService owned by controller (no direct pyserial here)
+        self.rfid_serial: SerialService = self.controller.rfid_serial
 
         btn_font = ctk.CTkFont(family="Arial", size=18, weight="bold")
         lbl_font = ctk.CTkFont(family="Arial", size=20, weight="bold")
@@ -296,11 +300,33 @@ class DiagnosticsPage2(ctk.CTkFrame):
             self.shared_data["enable_cook_algorithm"] = s.enable_cook_algorithm
             self.shared_data["use_rfid"] = s.use_rfid
 
+            # Add serial listener when the page becomes visible
+            if self.rfid_serial:
+                try:
+                    self.rfid_serial.add_listener(self._on_serial_line)
+                except Exception as e:
+                    print(f"[DiagnosticsPage2] add_listener failed: {e}")
+
         except Exception as e:
             print(f"[DiagnosticsPage2] Failed to load settings: {e}")
+        
+
+
+    def _on_serial_line(self, line: str) -> None:
+        print(f"RFDI data: {line}")
+
 
     def on_hide(self):
+        print("[DiagnosticsPage2] on_hide")
         self.save_settings()
+        self._remove_serial_listener_safe()
+
+    def _remove_serial_listener_safe(self):
+        try:
+            if self.rfid_serial:
+                self.rfid_serial.remove_listener(self._on_serial_line)
+        except Exception:
+            pass
 
     def on_back(self):
         self.save_settings()
