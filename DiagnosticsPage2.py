@@ -1,6 +1,7 @@
 import customtkinter as ctk
-from typing import TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Dict, Any, Optional
 import logging
+import time
 
 from SerialService import SerialService
 from hmi_consts import HMIColors, HMISizePos
@@ -19,19 +20,24 @@ class DiagnosticsPage2(ctk.CTkFrame):
         self, controller: "MultiPageController", shared_data: Dict[str, Any], **kwargs
     ):
         super().__init__(controller, fg_color=COLOR_FG, **kwargs)
+
         self.controller = controller
         self.shared_data = shared_data
 
+        self.rfid_serial: Optional[SerialService] = getattr(
+            self.controller, "rfid_serial", None
+        )
+
+        
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
         self.grid_columnconfigure(0, weight=1)
 
-         # Serial: use the shared SerialService owned by controller (no direct pyserial here)
-        self.rfid_serial: SerialService = self.controller.rfid_serial
-
         btn_font = ctk.CTkFont(family="Arial", size=18, weight="bold")
         lbl_font = ctk.CTkFont(family="Arial", size=20, weight="bold")
+        small_btn_font = ctk.CTkFont(family="Arial", size=24, weight="bold")
+        log_lbl_font = ctk.CTkFont(family="Arial", size=24, weight="bold")
 
         # ----- Header -----
         header = ctk.CTkFrame(self, fg_color=COLOR_FG)
@@ -57,12 +63,38 @@ class DiagnosticsPage2(ctk.CTkFrame):
             border_color=COLOR_BLUE,
         )
         body.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-        body.grid_columnconfigure(0, weight=1)
+
+        body.grid_rowconfigure(0, weight=1)
+        body.grid_columnconfigure(0, weight=0)
         body.grid_columnconfigure(1, weight=1)
 
-        # TSET
+        left_frame = ctk.CTkFrame(body, fg_color=COLOR_FG)
+        left_frame.grid(row=0, column=0, sticky="nw", padx=(10, 10), pady=10)
+
+        right_frame = ctk.CTkFrame(body, fg_color=COLOR_FG)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=10)
+
+        # Left side uses one sequential row per control.
+        # Keep these rows compact. Do not give them vertical weight,
+        # otherwise Tk spreads the controls over the full body height.
+        left_frame.grid_columnconfigure(0, weight=0)
+        for row_index in range(6):
+            left_frame.grid_rowconfigure(row_index, weight=0)
+
+        # Right side log area expands. Only the textbox row gets vertical weight,
+        # so the RFID log grows to use nearly all remaining body height.
+        right_frame.grid_columnconfigure(0, weight=1)
+        right_frame.grid_rowconfigure(0, weight=0)
+        right_frame.grid_rowconfigure(1, weight=0)
+        right_frame.grid_rowconfigure(2, weight=0)
+        right_frame.grid_rowconfigure(3, weight=1)
+        right_frame.grid_rowconfigure(4, weight=0)
+
+        left_row_pady = (6, 6)
+
+        # ----- Left side controls -----
         self.tset_input = LabeledIntInput(
-            body,
+            left_frame,
             label="TSET (°C):",
             initial=60,
             min_val=25,
@@ -77,11 +109,10 @@ class DiagnosticsPage2(ctk.CTkFrame):
             label_font=lbl_font,
             label_padx=(10, 5),
         )
-        self.tset_input.grid(row=0, column=0, sticky="w", padx=20, pady=(20, 10))
+        self.tset_input.grid(row=0, column=0, sticky="w", padx=10, pady=left_row_pady)
 
-        # THYS
         self.thys_input = LabeledIntInput(
-            body,
+            left_frame,
             label="THYS (°C):",
             initial=25,
             min_val=0,
@@ -96,11 +127,10 @@ class DiagnosticsPage2(ctk.CTkFrame):
             label_font=lbl_font,
             label_padx=(10, 5),
         )
-        self.thys_input.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 10))
+        self.thys_input.grid(row=1, column=0, sticky="w", padx=10, pady=left_row_pady)
 
-        # Top Zones Correction Factor
         self.top_zones_correction_factor_input = LabeledIntInput(
-            body,
+            left_frame,
             label="Top Zones Correction Factor (%):     ",
             initial=0,
             min_val=0,
@@ -116,12 +146,11 @@ class DiagnosticsPage2(ctk.CTkFrame):
             label_padx=(10, 5),
         )
         self.top_zones_correction_factor_input.grid(
-            row=2, column=0, sticky="w", padx=20, pady=(0, 10)
+            row=2, column=0, sticky="w", padx=10, pady=left_row_pady
         )
 
-        # Bottom Zones Correction Factor
         self.bottom_zones_correction_factor_input = LabeledIntInput(
-            body,
+            left_frame,
             label="Bottom Zones Correction Factor (%):",
             initial=0,
             min_val=0,
@@ -137,12 +166,11 @@ class DiagnosticsPage2(ctk.CTkFrame):
             label_padx=(10, 5),
         )
         self.bottom_zones_correction_factor_input.grid(
-            row=3, column=0, sticky="w", padx=20, pady=(0, 10)
+            row=3, column=0, sticky="w", padx=10, pady=left_row_pady
         )
 
-        # tC
         self.tc_input = LabeledIntInput(
-            body,
+            left_frame,
             label="tC (sec):",
             initial=300,
             min_val=10,
@@ -157,11 +185,10 @@ class DiagnosticsPage2(ctk.CTkFrame):
             label_font=lbl_font,
             label_padx=(10, 5),
         )
-        self.tc_input.grid(row=4, column=0, sticky="w", padx=20, pady=(0, 10))
+        self.tc_input.grid(row=4, column=0, sticky="w", padx=10, pady=left_row_pady)
 
-        # Enable Cook Algorithm
         self.enable_cook_algorithm_checkbox = ctk.CTkCheckBox(
-            body,
+            left_frame,
             text="Enable Cookpack Algorithm",
             font=lbl_font,
             text_color=COLOR_BLUE,
@@ -171,12 +198,12 @@ class DiagnosticsPage2(ctk.CTkFrame):
             checkmark_color=COLOR_FG,
         )
         self.enable_cook_algorithm_checkbox.grid(
-            row=5, column=0, sticky="w", padx=20, pady=(0, 20)
+            row=5, column=0, sticky="w", padx=10, pady=left_row_pady
         )
 
-        # Enable RFID Reader
+        # ----- Right side RFID controls -----
         self.use_rfid_checkbox = ctk.CTkCheckBox(
-            body,
+            right_frame,
             text="Enable RFID Reader",
             font=lbl_font,
             text_color=COLOR_BLUE,
@@ -186,8 +213,80 @@ class DiagnosticsPage2(ctk.CTkFrame):
             checkmark_color=COLOR_FG,
         )
         self.use_rfid_checkbox.grid(
-            row=0, column=1, sticky="w", padx=(40, 20), pady=(20, 10)
+            row=0, column=0, sticky="w", padx=10, pady=(4, 4)
         )
+
+        button_row = ctk.CTkFrame(right_frame, fg_color=COLOR_FG)
+        button_row.grid(row=1, column=0, sticky="ew", padx=10, pady=(4, 4))
+
+        self.is_tag_present_btn = ctk.CTkButton(
+            button_row,
+            text="Is Tag Present?",
+            command=self.on_is_tag_present,
+            font=small_btn_font,
+            fg_color=HMIColors.color_fg,
+            text_color=HMIColors.color_blue,
+            corner_radius=18,
+            border_width=2,
+            border_color=HMIColors.color_blue,
+            hover_color=HMIColors.color_numbers,
+            width=230,
+            height=48,
+        )
+        self.is_tag_present_btn.grid(row=0, column=0, sticky="w", padx=(0, 20))
+
+        self.get_last_read_btn = ctk.CTkButton(
+            button_row,
+            text="Get Last Read",
+            command=self.on_get_last_read,
+            font=small_btn_font,
+            fg_color=HMIColors.color_fg,
+            text_color=HMIColors.color_blue,
+            corner_radius=18,
+            border_width=2,
+            border_color=HMIColors.color_blue,
+            hover_color=HMIColors.color_numbers,
+            width=230,
+            height=48,
+        )
+        self.get_last_read_btn.grid(row=0, column=1, sticky="w")
+
+        self.log_label = ctk.CTkLabel(
+            right_frame,
+            text="Communication Log",
+            text_color=HMIColors.color_blue,
+            font=log_lbl_font,
+        )
+        self.log_label.grid(row=2, column=0, sticky="w", padx=10, pady=(2, 2))
+
+        self.serial_log_textbox = ctk.CTkTextbox(
+            right_frame,
+            fg_color="black",
+            text_color="white",
+            border_width=0,
+            corner_radius=0,
+            font=("Consolas", 16),
+            wrap="word",
+        )
+        self.serial_log_textbox.grid(
+            row=3, column=0, sticky="nsew", padx=10, pady=(0, 4)
+        )
+
+        self.clear_log_btn = ctk.CTkButton(
+            right_frame,
+            text="Clear",
+            command=self.on_clear_log,
+            font=small_btn_font,
+            fg_color=HMIColors.color_fg,
+            text_color=HMIColors.color_blue,
+            corner_radius=12,
+            border_width=2,
+            border_color=HMIColors.color_blue,
+            hover_color=HMIColors.color_numbers,
+            width=100,
+            height=48,
+        )
+        self.clear_log_btn.grid(row=4, column=0, sticky="e", padx=10, pady=(0, 4))
 
         # ----- Footer -----
         footer = ctk.CTkFrame(self, fg_color=COLOR_FG)
@@ -225,7 +324,6 @@ class DiagnosticsPage2(ctk.CTkFrame):
         )
         refresh_btn.pack(side="right", padx=10, pady=6)
 
-    # ----- Settings helpers -----
     def _clamp(self, val: int, lo: int, hi: int) -> int:
         return max(lo, min(hi, val))
 
@@ -264,6 +362,7 @@ class DiagnosticsPage2(ctk.CTkFrame):
 
     def on_show(self):
         print("[DiagnosticsPage2] on_show")
+
         try:
             s = Settings.Instance()
             s.load()
@@ -300,21 +399,17 @@ class DiagnosticsPage2(ctk.CTkFrame):
             self.shared_data["enable_cook_algorithm"] = s.enable_cook_algorithm
             self.shared_data["use_rfid"] = s.use_rfid
 
-            # Add serial listener when the page becomes visible
             if self.rfid_serial:
                 try:
                     self.rfid_serial.add_listener(self._on_serial_line)
+                    self._append_log("[DiagnosticsPage2] RFID listener attached")
                 except Exception as e:
-                    print(f"[DiagnosticsPage2] add_listener failed: {e}")
+                    self._append_log(f"[DiagnosticsPage2] add_listener failed: {e}")
+            else:
+                self._append_log("[DiagnosticsPage2] No controller.rfid_serial found")
 
         except Exception as e:
             print(f"[DiagnosticsPage2] Failed to load settings: {e}")
-        
-
-
-    def _on_serial_line(self, line: str) -> None:
-        print(f"RFDI data: {line}")
-
 
     def on_hide(self):
         print("[DiagnosticsPage2] on_hide")
@@ -328,6 +423,45 @@ class DiagnosticsPage2(ctk.CTkFrame):
         except Exception:
             pass
 
+    def _on_serial_line(self, line: str) -> None:
+        print(f"RFID: {line}")
+        self._append_log(f"Recvd: {line}")
+
+        # if "N=1" in line:
+        #     self._append_log(f"A new tag has entered the reader's RF field")
+        # if "E=1" in line:
+        #     self._append_log(f"An error when reading the tag's data")
+
+    def _append_log(self, text: str) -> None:
+        try:
+            timestamp = time.strftime("%H:%M:%S")
+            self.serial_log_textbox.insert("end", f"[{timestamp}] {text}\n")
+            self.serial_log_textbox.see("end")
+        except Exception as e:
+            print(f"[DiagnosticsPage2] Log append failed: {e}")
+
+    def on_clear_log(self):
+        try:
+            self.serial_log_textbox.delete("1.0", "end")
+        except Exception as e:
+            print(f"[DiagnosticsPage2] Clear log failed: {e}")
+
+    def on_is_tag_present(self):
+        msg = "Q\r"
+        if self.rfid_serial:
+            self.rfid_serial.send(msg)
+            self._append_log("Sent: Q")
+        else:
+            self._append_log("RFID reader not present")
+
+    def on_get_last_read(self):
+        msg = "D\r"
+        if self.rfid_serial:
+            self.rfid_serial.send(msg)
+            self._append_log("Sent: D")
+        else:
+            self._append_log("RFID reader not present")
+
     def on_back(self):
         self.save_settings()
 
@@ -338,6 +472,8 @@ class DiagnosticsPage2(ctk.CTkFrame):
 
     def on_refresh(self):
         self.save_settings()
+        self._append_log("Settings refreshed")
+
         print(
             f"[DiagnosticsPage2] Refreshed, "
             f"TSET={self.shared_data.get('tset')}, "
@@ -349,7 +485,6 @@ class DiagnosticsPage2(ctk.CTkFrame):
             f"Use RFID={self.shared_data.get('use_rfid')}"
         )
 
-    # Optional helpers
     def get_tset(self):
         return int(self.shared_data.get("tset", 60))
 
