@@ -144,6 +144,7 @@ class MultiPageController:
         self.view = ImageHotspotView.get_instance(root)
         self.view.grid(row=0, column=0, sticky="nsew")
 
+        DoorSafety.Instance().set_ui_root(root)
         # ----------------------------
         # Serial + DoorSafety
         # ----------------------------
@@ -161,8 +162,7 @@ class MultiPageController:
         except Exception as e:
             print("RFID serial start failed:", e)
 
-        DoorSafety.Instance().set_ui_root(root)
-
+       
         # ----------------------------
         # Admin mode flag + logo click tracking
         # ----------------------------

@@ -1,8 +1,9 @@
 # homepage.py
 import os
 import time
-from typing import List
+from typing import List, Optional
 import customtkinter as ctk
+from SerialService import SerialService
 from hotspots import Hotspot
 
 
@@ -13,7 +14,8 @@ class HomePage:
       - defines three hotspots and their callbacks
     """
 
-    IMAGE_NAME = "00HomePage.png"
+    #IMAGE_NAME = "00HomePage.png"
+    IMAGE_NAME = "000HomePage.png"
 
     def __init__(self, controller=None):
         self.controller = controller
@@ -26,13 +28,18 @@ class HomePage:
 
         self.hotspots: List[Hotspot] = [
             Hotspot("logo", (560, 230, 730, 390), self.on_logo_clicked),
-            Hotspot("start", (495, 565, 776, 662), self.on_start_clicked),
+            #Hotspot("start", (495, 565, 776, 662), self.on_start_clicked),
+            Hotspot("start", (105, 378, 591, 533), self.on_start_clicked),
             # "i" icon hotspot
             Hotspot("info", (1104, 629, 1205, 714), self.on_info_clicked),
         ]
 
         # Track recent logo click timestamps (seconds since epoch)
         self._logo_click_times: list[float] = []
+
+        self.rfid_serial: Optional[SerialService] = getattr(
+            self.controller, "rfid_serial", None
+        )
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -83,6 +90,31 @@ class HomePage:
                     print(f"[HomePage] on_logo_easter_egg failed: {e}")
 
 
+
+    def on_show(self):
+        print("In on_show homepage")
+        if self.rfid_serial:
+            try:
+                self.rfid_serial.add_listener(self._on_rfid_serial_line)
+            except Exception as e:
+                print("Error in call to self.rfid_serial.add_listener(self._on_rfid_serial_line)")
+
+    def _on_rfid_serial_line(self, line: str) -> None:
+        if "N=1" in line and self.rfid_serial and self.controller:
+            self.controller.after(
+                20,
+                self.rfid_serial.send,
+                "D\r"
+            )
+        print(f"RFID: {line}")
+       
+    def on_hide(self):
+        print("[DiagnosticsPage2] on_hide")
+        try:
+            if self.rfid_serial:
+                self.rfid_serial.remove_listener(self._on_rfid_serial_line)
+        except Exception:
+            pass
 # ----------------------------------------------------------------------
 # Self-test / harness for HomePage + ImageHotspotView
 # ----------------------------------------------------------------------
