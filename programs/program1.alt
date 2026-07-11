@@ -151,7 +151,7 @@
         },
         {
           "power": 0,
-          "duration": 0.0
+          "duration": 1.0
         }
       ]
     },
@@ -178,5 +178,5 @@
       ]
     }
   ],
-  "total_time": "10:17"
+  "total_time": "10:18"
 }

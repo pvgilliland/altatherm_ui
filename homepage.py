@@ -27,7 +27,8 @@ class HomePage:
         self.image_path = os.path.join(assets_dir, self.IMAGE_NAME)
 
         self.hotspots: List[Hotspot] = [
-            Hotspot("logo", (560, 230, 730, 390), self.on_logo_clicked),
+            #Hotspot("logo", (560, 230, 730, 390), self.on_logo_clicked),
+            Hotspot("logo", (570, 76, 708, 187), self.on_logo_clicked),
             #Hotspot("start", (495, 565, 776, 662), self.on_start_clicked),
             Hotspot("start", (105, 378, 591, 533), self.on_start_clicked),
             # "i" icon hotspot
@@ -93,6 +94,8 @@ class HomePage:
 
     def on_show(self):
         print("In on_show homepage")
+        if self.controller:
+            self.controller.rfid_tag = ""
         if self.rfid_serial:
             try:
                 self.rfid_serial.add_listener(self._on_rfid_serial_line)
@@ -107,9 +110,24 @@ class HomePage:
                 "D\r"
             )
         print(f"RFID: {line}")
+
+         # RFID data received
+        if line.startswith("D="):
+            print(f"RFID Data: {line}")
+
+            if self.controller:
+                # Optionally store the tag for the next page
+                self.controller.rfid_tag = line
+
+                # Switch to the Prepare For Cooking page
+                self.controller.after(
+                    0,
+                    self.controller.show_PrepareForCookingPage1,
+                    False      # from_info=False
+                )
        
     def on_hide(self):
-        print("[DiagnosticsPage2] on_hide")
+        print("[HomePage] on_hide")
         try:
             if self.rfid_serial:
                 self.rfid_serial.remove_listener(self._on_rfid_serial_line)

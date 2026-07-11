@@ -528,6 +528,8 @@ class MultiPageController:
     def enter_admin_mode(self) -> None:
         if self.is_admin:
             return
+        
+        self.suspend_rfid()
 
         self.is_admin = True
 
@@ -550,6 +552,8 @@ class MultiPageController:
     def exit_admin_mode(self) -> None:
         if not self.is_admin:
             return
+
+        self.resume_rfid()
 
         self.is_admin = False
 
@@ -611,6 +615,11 @@ class MultiPageController:
         self.show_page(self.prepare_for_cooking_page2)
 
     def show_StartCookingConfirmation(self) -> None:
+        ######################### temp code until we figure out rfid #################
+        if self.select_meal_page.meal_index < 0:
+            self.select_meal_page.meal_index=0
+        ##############################################################################
+        
         self.start_cooking_confirm_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.start_cooking_confirm_page)
 
@@ -1061,6 +1070,12 @@ class MultiPageController:
 
     def exit_app(self) -> None:
         self.root.destroy()
+
+    def suspend_rfid(self):
+        self.rfid_serial.remove_listener(self.home_page._on_rfid_serial_line)
+
+    def resume_rfid(self):
+        self.rfid_serial.add_listener(self.home_page._on_rfid_serial_line)
 
 
 if __name__ == "__main__":

@@ -198,6 +198,14 @@ class StartCookingConfirmation:
     # Methods
     # ------------------------------------------------------------------
     def on_show(self, meal_index: int):
+        
+        ################# Temp code ############################
+        if meal_index < 0:
+            meal_index = 0 # temp code until we decide how to handle rfid reads
+        print(f"RFID tag data: {self.controller.rfid_tag}")
+        ########################################################
+
+
         self.meal_index = meal_index
 
         filename, name = self.meal_images[meal_index]
