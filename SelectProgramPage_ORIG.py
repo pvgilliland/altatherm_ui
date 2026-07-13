@@ -69,47 +69,8 @@ def save_program_from_sequence_collection(idx: int, description: str = None) -> 
         "zone_sequences": zone_sequences,
         "total_time": _compute_total_time_from_zone_sequences(zone_sequences),
     }
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w") as f:
         json.dump(payload, f, indent=2)
-
-
-def save_encoded_program(
-    encoded_program: str,
-    program_number: int = 9999,
-) -> Dict[str, Any]:
-    """
-    Decode an encoded RFID program, populate SequenceCollection, and save it
-    as program<program_number>.alt.
-
-    The encoded program is expected to include its description before the
-    encoded zone/step data.
-
-    Returns the decoded program dictionary.
-    """
-
-    if not isinstance(encoded_program, str):
-        raise ValueError("Encoded program must be a string")
-
-    encoded_program = encoded_program.strip("\r\n\x00")
-
-    if not encoded_program:
-        raise ValueError("Encoded program is empty")
-
-    decoded_program = SequenceCollection.from_encoded_program(
-        encoded_program
-    )
-
-    description = decoded_program.get(
-        "description",
-        f"Program {program_number}",
-    )
-
-    save_program_from_sequence_collection(
-        program_number,
-        description=description,
-    )
-
-    return decoded_program
 
 
 def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
@@ -117,7 +78,7 @@ def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
     payload = None
     if os.path.exists(path):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, "r") as f:
                 payload = json.load(f)
             if not isinstance(payload, dict) or "zone_sequences" not in payload:
                 raise ValueError("Invalid payload")
@@ -126,7 +87,7 @@ def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
 
     if payload is None:
         payload = _new_default_program_dict(idx)
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path, "w") as f:
             json.dump(payload, f, indent=2)
 
     SequenceCollection.from_dict({"zone_sequences": payload.get("zone_sequences", [])})
@@ -137,7 +98,7 @@ def load_program_into_sequence_collection(idx: int) -> Dict[str, Any]:
     if recomputed != payload.get("total_time"):
         payload["total_time"] = recomputed
         try:
-            with open(path, "w", encoding="utf-8") as f:
+            with open(path, "w") as f:
                 json.dump(payload, f, indent=2)
         except Exception:
             pass

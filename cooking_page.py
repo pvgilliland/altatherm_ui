@@ -416,7 +416,10 @@ class CookingPage:
         # ----------------------------
         # FRESH ENTRY (normal start)
         # ----------------------------
-        program_number: int = meal_index + 31
+        meal_index_offset = 31
+        if meal_index == 9999:
+            meal_index_offset = 0
+        program_number: int = meal_index + meal_index_offset
         path = str(PROGRAMS_DIR / f"program{program_number}.alt")
 
         total_timef: float = 0.0

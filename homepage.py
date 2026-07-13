@@ -5,6 +5,7 @@ from typing import List, Optional
 import customtkinter as ctk
 from SerialService import SerialService
 from hotspots import Hotspot
+from SelectProgramPage import save_encoded_program
 
 
 class HomePage:
@@ -114,10 +115,14 @@ class HomePage:
          # RFID data received
         if line.startswith("D="):
             print(f"RFID Data: {line}")
-
+            # remove the leading "D="
+            line = line[2:]
+            encoded_program  = line
             if self.controller:
                 # Optionally store the tag for the next page
                 self.controller.rfid_tag = line
+
+                decoded_program = save_encoded_program(encoded_program=encoded_program, program_number=9999,)
 
                 # Switch to the Prepare For Cooking page
                 self.controller.after(

@@ -22,6 +22,7 @@ class StartCookingConfirmation:
         self.controller = controller
         self.meal_index: int = -1  # ← store for incoming parameter
 
+        # dictionary
         self.meal_images = {
             0: ("food.png", "Item 1"),
             1: ("food.png", "Item 2"),
@@ -35,6 +36,7 @@ class StartCookingConfirmation:
             9: ("food.png", "Item 10"),
             10: ("food.png", "Item 11"),
             11: ("food.png", "Item 12"),
+            9999: ("food.png", "Item 9999"),
         }
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
@@ -154,7 +156,12 @@ class StartCookingConfirmation:
 
         else:
             # Normal meal: look up the program's total_time and block if 0
-            program_number = self.meal_index + 31
+            meal_index_offset = 31
+            # check if we got here because of an rfid read
+            if self.meal_index == 9999:
+                meal_index_offset = 0
+
+            program_number = self.meal_index + meal_index_offset
             path = str(PROGRAMS_DIR / f"program{program_number}.alt")
 
             try:
@@ -199,9 +206,11 @@ class StartCookingConfirmation:
     # ------------------------------------------------------------------
     def on_show(self, meal_index: int):
         
+        meal_index_offset : int = 31
         ################# Temp code ############################
-        if meal_index < 0:
-            meal_index = 0 # temp code until we decide how to handle rfid reads
+        if meal_index == -1:
+            meal_index = 9999 # temp code until we decide how to handle rfid reads
+            meal_index_offset = 0;
         print(f"RFID tag data: {self.controller.rfid_tag}")
         ########################################################
 
@@ -218,7 +227,7 @@ class StartCookingConfirmation:
 
         print(image_path)
 
-        program_number: int = meal_index + 31
+        program_number: int = meal_index + meal_index_offset
 
         load_program_into_sequence_collection(program_number)
 

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 PERIODIC_THERMISTOR = True
 PERIODIC_INTRERVAL_MS = 1000
 WDT_TIMEOUT_MS = 7000
-WDT_STARTUP_DELAY_MS = 2000
+WDT_STARTUP_DELAY_MS = 10000
 
 
 class CircularProgressPage_admin(ctk.CTkFrame):

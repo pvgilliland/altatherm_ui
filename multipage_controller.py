@@ -615,15 +615,14 @@ class MultiPageController:
         self.show_page(self.prepare_for_cooking_page2)
 
     def show_StartCookingConfirmation(self) -> None:
-        ######################### temp code until we figure out rfid #################
-        if self.select_meal_page.meal_index < 0:
-            self.select_meal_page.meal_index=0
-        ##############################################################################
-        
         self.start_cooking_confirm_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.start_cooking_confirm_page)
 
     def show_CookingPage(self) -> None:
+        # check of we are here because of rfid read
+        if self.select_meal_page.meal_index == -1:
+            self.select_meal_page.meal_index = 9999
+            
         self.cooking_page.on_show(self.select_meal_page.meal_index)
         self.show_page(self.cooking_page)
 
