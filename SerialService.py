@@ -70,15 +70,31 @@ class SerialService:
                 raise RuntimeError("Serial port not open")
 
             # throttle enforcement
-            now = time.time()
+            now = time.monotonic()
             elapsed = now - self._last_send_time
-            min_interval = 0  # 0.05  # 50 ms
+            min_interval = 0 # 0.05  # 50 ms
             if elapsed < min_interval:
                 time.sleep(min_interval - elapsed)
 
-            data = (cmd + self.line_ending).encode("utf-8", errors="ignore")
+            data = (cmd.rstrip("\r\n") + self.line_ending).encode("ascii")
+            
+            #if cmd == "Z00=000R\r":
+            #   pass
+
+            # print(
+            #     f"[SERIAL TX] cmd={cmd!r}, "
+            #     f"ending={self.line_ending!r}, "
+            #     f"bytes={list(data)}"
+            # )
+            # if b'Z' in data or b'R' in data:
+            #     print(
+            #         f"[SERIAL TX] cmd={cmd!r}, "
+            #         f"ending={self.line_ending!r}, "
+            #         f"bytes={list(data)}"
+            #     )
             self._ser.write(data)
-            self._last_send_time = time.time()
+            self._ser.flush()
+            self._last_send_time = time.monotonic()
 
     def add_listener(self, fn: Callable[[str], None]):
         if fn not in self._listeners:

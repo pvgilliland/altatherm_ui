@@ -1071,10 +1071,18 @@ class MultiPageController:
         self.root.destroy()
 
     def suspend_rfid(self):
-        self.rfid_serial.remove_listener(self.home_page._on_rfid_serial_line)
+        try:
+            self.rfid_serial.remove_listener(self.home_page._on_rfid_serial_line)
+        except Exception:
+            pass
+        
 
     def resume_rfid(self):
-        self.rfid_serial.add_listener(self.home_page._on_rfid_serial_line)
+        try:
+            self.rfid_serial.add_listener(self.home_page._on_rfid_serial_line)
+        except Exception:
+            pass
+        
 
 
 if __name__ == "__main__":
