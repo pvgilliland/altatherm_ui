@@ -142,7 +142,7 @@ class ReheatPage:
         # START COOKING
         # ------------------------------------------------------------
 
-        self.controller.show_CookingPage()
+        self.controller.show_CookingPage(5)
 
     # ------------------------------------------------------------------
     # Page Lifecycle

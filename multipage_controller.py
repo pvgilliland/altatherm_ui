@@ -1083,6 +1083,36 @@ class MultiPageController:
             print(f"[MultiPageController] serial_all_zones({power}) failed: {e}")
 
         return secs
+    
+    def resume_reheat_cycle(self) -> None:
+        """
+        Restore the reheat hardware outputs after a pause.
+
+        This does not restart or reset the CookingPage countdown.
+        CookingPage continues using its saved remaining time.
+        """
+        power = 80
+
+        print(
+            "[MultiPageController] "
+            f"Resuming reheat cycle at {power}% power"
+        )
+
+        try:
+            oven_state.set_running(True)
+        except Exception as e:
+            print(
+                "[MultiPageController] "
+                f"oven_state.set_running(True) failed: {e}"
+            )
+
+        try:
+            self.serial_all_zones(power)
+        except Exception as e:
+            print(
+                "[MultiPageController] "
+                f"resume_reheat_cycle serial output failed: {e}"
+            )
 
     def get(self, key, default=None):
         """Compatibility shim for ProjectA admin pages that treat controller like a dict."""

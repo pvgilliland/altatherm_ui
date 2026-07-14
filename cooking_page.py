@@ -54,7 +54,10 @@ class CookingPage:
         except Exception as e:
             print(f"[CookingPage] stop_current_cook in on_back_clicked failed: {e}")
         if self.controller:
-            self.controller.show_PrepareForCookingPage2()
+            self.controller.show_PrepareForCookingPage2(
+                from_info=False,
+                meal_index=self.meal_index,
+            )
 
     def on_stop_clicked(self):
         """
@@ -133,32 +136,42 @@ class CookingPage:
 
         # --- PAUSE case (currently running) ---
         if self._running:
-            print("[CookingPage] Pause requested")
+            print(
+                f"[CookingPage] Pause requested, "
+                f"meal_index={self.meal_index}"
+            )
+
+            # Preserve the current countdown time before leaving this page.
             self._pause_progress()
 
-            # Pause sequences / power at controller level (if supported)
-            if self.controller and hasattr(self.controller, "pause_current_cook"):
+            if self.meal_index == 5:
+                # Reheat does not use CookingSequenceManager.
+                # Explicitly remove power from every zone.
                 try:
-                    self.controller.pause_current_cook()
+                    self.controller.serial_all_zones_off()
                 except Exception as e:
-                    print(f"[CookingPage] pause_current_cook failed: {e}")
+                    print(
+                        "[CookingPage] "
+                        f"reheat pause serial_all_zones_off failed: {e}"
+                    )
+            else:
+                # Normal meal programs use CookingSequenceManager.
+                try:
+                    self.controller.pause_current_cook(cut_output=True)
+                except Exception as e:
+                    print(
+                        "[CookingPage] "
+                        f"pause_current_cook failed: {e}"
+                    )
 
-            # Show the CookingPausedPage when we pause
-            if self.controller and hasattr(self.controller, "show_CookingPausedPage"):
-                try:
-                    self.controller.show_CookingPausedPage()
-                except Exception as e:
-                    print(f"[CookingPage] show_CookingPausedPage failed: {e}")
-
-            # If reheat mode, STOP means "send 0 to all channels"
-            if self.meal_index == 5 and self.controller is not None:
-                try:
-                    if hasattr(self.controller, "serial_all_zones"):
-                        self.controller.serial_all_zones(0)
-                    else:
-                        print("[CookingPage] controller missing serial_all_zones")
-                except Exception as e:
-                    print(f"[CookingPage] reheat STOP: serial_all_zones failed: {e}")
+            # Always pass the active meal explicitly.
+            try:
+                self.controller.show_CookingPausedPage(self.meal_index)
+            except Exception as e:
+                print(
+                    "[CookingPage] "
+                    f"show_CookingPausedPage failed: {e}"
+                )
 
             return
 
@@ -416,21 +429,37 @@ class CookingPage:
         # ----------------------------
         # FRESH ENTRY (normal start)
         # ----------------------------
-        meal_index_offset = 31
-        if meal_index == 9999:
-            meal_index_offset = 0
-        program_number: int = meal_index + meal_index_offset
-        path = str(PROGRAMS_DIR / f"program{program_number}.alt")
-
         total_timef: float = 0.0
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-            total_time_str = data.get("total_time") or "0:00"
-            total_timef = CookingPage.mmss_to_seconds(total_time_str)
-        except Exception as e:
-            print(f"[CookingPage] Failed to read {path}: {e}")
-            total_timef = 0.0
+
+        if meal_index == 5:
+            # Reheat duration comes from the ReheatPage time control,
+            # not from program36.alt.
+            try:
+                total_timef = float(
+                    self.controller.shared_data.get("reheat_seconds", 0) or 0
+                )
+            except (TypeError, ValueError):
+                total_timef = 0.0
+
+            print(
+                "[CookingPage] "
+                f"Fresh reheat entry, total_time={total_timef:.1f}s"
+            )
+
+        else:
+            program_number = 9999 if meal_index == 9999 else meal_index + 31
+            path = str(PROGRAMS_DIR / f"program{program_number}.alt")
+
+            try:
+                with open(path, "r") as f:
+                    data = json.load(f)
+
+                total_time_str = data.get("total_time") or "0:00"
+                total_timef = CookingPage.mmss_to_seconds(total_time_str)
+
+            except Exception as e:
+                print(f"[CookingPage] Failed to read {path}: {e}")
+                total_timef = 0.0
 
         # Store base time; on_stop_clicked will start the actual program
         self._total_time = total_timef
