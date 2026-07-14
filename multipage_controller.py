@@ -601,36 +601,65 @@ class MultiPageController:
         )
         self.show_page(self.select_meal_page)
 
-    # pass state to know if opened from "i info button click"
-    def show_PrepareForCookingPage1(self, from_info=False) -> None:
+    # Pass the selected meal explicitly through the normal cooking workflow.
+    # meal_index=None is used only for the informational path before a meal is chosen.
+    def show_PrepareForCookingPage1(
+        self,
+        from_info: bool = False,
+        meal_index: int | None = None,
+    ) -> None:
         self.prepare_for_cooking_page1 = PrepareForCookingPage1(
-            controller=self, from_info=from_info
+            controller=self,
+            from_info=from_info,
+            meal_index=meal_index,
         )
         self.show_page(self.prepare_for_cooking_page1)
 
-    def show_PrepareForCookingPage2(self, from_info=False):
+    def show_PrepareForCookingPage2(
+        self,
+        from_info: bool = False,
+        meal_index: int | None = None,
+    ) -> None:
         self.prepare_for_cooking_page2 = PrepareForCookingPage2(
-            controller=self, from_info=from_info
+            controller=self,
+            from_info=from_info,
+            meal_index=meal_index,
         )
         self.show_page(self.prepare_for_cooking_page2)
 
-    def show_StartCookingConfirmation(self) -> None:
-        self.start_cooking_confirm_page.on_show(self.select_meal_page.meal_index)
+    def show_StartCookingConfirmation(self, meal_index: int | None) -> None:
+        if meal_index is None:
+            print(
+                "[MultiPageController] "
+                "show_StartCookingConfirmation called without a meal_index"
+            )
+            return
+
+        self.start_cooking_confirm_page.on_show(meal_index)
         self.show_page(self.start_cooking_confirm_page)
 
-    def show_CookingPage(self) -> None:
-        # check of we are here because of rfid read
-        if self.select_meal_page.meal_index == -1:
-            self.select_meal_page.meal_index = 9999
-            
-        self.cooking_page.on_show(self.select_meal_page.meal_index)
+    def show_CookingPage(self, meal_index: int | None) -> None:
+        if meal_index is None:
+            print("[MultiPageController] show_CookingPage called without a meal_index")
+            return
+
+        self.cooking_page.on_show(meal_index)
         self.show_page(self.cooking_page)
 
     def show_CookingFinishedPage(self) -> None:
         self.show_page(self.cooking_finished_page)
 
-    def show_CookingPausedPage(self) -> None:
-        self.cooking_paused_page.on_show(self.select_meal_page.meal_index)
+    def show_CookingPausedPage(self, meal_index: int | None = None) -> None:
+        if meal_index is None:
+            meal_index = self.start_cooking_confirm_page.meal_index
+        if meal_index is None:
+            print(
+                "[MultiPageController] "
+                "show_CookingPausedPage called without a meal_index"
+            )
+            return
+
+        self.cooking_paused_page.on_show(meal_index)
         self.show_page(self.cooking_paused_page)
 
     # ---- Admin pages called by HomePage_admin ----
@@ -906,8 +935,11 @@ class MultiPageController:
             print("[MultiPageController] start_meal_program: meal_index is None")
             return 0.0
 
-        program_number = meal_index + 31
-        print(f"[MultiPageController] Starting meal program {program_number}")
+        program_number = 9999 if meal_index == 9999 else meal_index + 31
+        print(
+            "[MultiPageController] "
+            f"Starting meal_index={meal_index}, program={program_number}"
+        )
 
         try:
             load_program_into_sequence_collection(program_number)
@@ -1091,7 +1123,7 @@ if __name__ == "__main__":
 
     root = ctk.CTk()
     root.geometry("1280x800")
-    # root.overrideredirect(True)
+    root.overrideredirect(True)
     HMISizePos.set_resolution("1280x800")
 
     # REQUIRED: give DoorSafety the UI root

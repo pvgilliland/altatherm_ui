@@ -128,7 +128,8 @@ class HomePage:
                 self.controller.after(
                     0,
                     self.controller.show_PrepareForCookingPage1,
-                    False      # from_info=False
+                    False,     # from_info=False
+                    9999,      # RFID program number / meal index
                 )
        
     def on_hide(self):

@@ -13,9 +13,10 @@ class PrepareForCookingPage1:
 
     IMAGE_NAME = "02PrepareForCooking.png"
 
-    def __init__(self, controller=None, from_info=False):
+    def __init__(self, controller=None, from_info=False, meal_index=None):
         self.controller = controller
         self.from_info = from_info
+        self.meal_index = meal_index
 
         here = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
         assets_dir = os.path.join(here, "assets")
@@ -48,4 +49,7 @@ class PrepareForCookingPage1:
     def on_forward_clicked(self):
         print("on_forward_clicked")
         if self.controller:
-            self.controller.show_PrepareForCookingPage2(from_info=self.from_info)
+            self.controller.show_PrepareForCookingPage2(
+                from_info=self.from_info,
+                meal_index=self.meal_index,
+            )

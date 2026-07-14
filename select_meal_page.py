@@ -285,9 +285,12 @@ class SelectMealPage:
             return
 
         if self.from_info:
-            self.controller.show_StartCookingConfirmation()
+            self.controller.show_StartCookingConfirmation(meal_index=meal_index)
         else:
-            self.controller.show_PrepareForCookingPage1(from_info=False)
+            self.controller.show_PrepareForCookingPage1(
+                from_info=False,
+                meal_index=meal_index,
+            )
 
     def on_back_clicked(self):
         print("on_back_clicked")
@@ -297,7 +300,10 @@ class SelectMealPage:
     def on_question_clicked(self):
         print("on_question_clicked")
         if self.controller:
-            self.controller.show_PrepareForCookingPage1(from_info=True)
+            self.controller.show_PrepareForCookingPage1(
+                from_info=True,
+                meal_index=None,
+            )
 
     def on_scroll_up_clicked(self):
         print("on_scroll_up_clicked")

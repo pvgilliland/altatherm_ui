@@ -20,7 +20,7 @@ class StartCookingConfirmation:
 
     def __init__(self, controller):
         self.controller = controller
-        self.meal_index: int = -1  # ← store for incoming parameter
+        self.meal_index: int | None = None
 
         # dictionary
         self.meal_images = {
@@ -88,7 +88,10 @@ class StartCookingConfirmation:
             return
 
         self.controller.shared_data["show_reheat_time_attention"] = False
-        self.controller.show_PrepareForCookingPage1(from_info=False)
+        self.controller.show_PrepareForCookingPage1(
+            from_info=False,
+            meal_index=self.meal_index,
+        )
 
     def on_home_clicked(self):
         print("on_home_clicked")
@@ -112,7 +115,10 @@ class StartCookingConfirmation:
             if view and hasattr(view, "hide_reheat_time_attention"):
                 view.hide_reheat_time_attention()
 
-            self.controller.show_PrepareForCookingPage2()
+            self.controller.show_PrepareForCookingPage2(
+                from_info=False,
+                meal_index=self.meal_index,
+            )
 
     def on_start_clicked(self):
         print("StartCookingConfirmation: Start clicked")
@@ -199,42 +205,36 @@ class StartCookingConfirmation:
         except Exception:
             pass
 
-        self.controller.show_CookingPage()
+        self.controller.show_CookingPage(meal_index=self.meal_index)
 
     # ------------------------------------------------------------------
     # Methods
     # ------------------------------------------------------------------
     def on_show(self, meal_index: int):
-        
-        meal_index_offset : int = 31
-        ################# Temp code ############################
-        if meal_index == -1:
-            meal_index = 9999 # temp code until we decide how to handle rfid reads
-            meal_index_offset = 0;
-        print(f"RFID tag data: {self.controller.rfid_tag}")
-        ########################################################
-
+        if meal_index not in self.meal_images:
+            raise ValueError(f"Unsupported meal_index: {meal_index}")
 
         self.meal_index = meal_index
 
         filename, name = self.meal_images[meal_index]
-
         if not filename:
             self.controller.view.set_overlay_image(None)
             return
 
         image_path = os.path.join(ASSETS_DIR, filename)
+        program_number = 9999 if meal_index == 9999 else meal_index + 31
 
-        print(image_path)
-
-        program_number: int = meal_index + meal_index_offset
+        print(
+            "[StartCookingConfirmation] "
+            f"meal_index={meal_index}, program_number={program_number}"
+        )
 
         load_program_into_sequence_collection(program_number)
 
         path = str(PROGRAMS_DIR / f"program{program_number}.alt")
         with open(path, "r") as f:
             data = json.load(f)
-        total_time = data.get("total_time")
+        total_time = data.get("total_time", "0:00")
 
         self.controller.view.set_overlay_image(
             image_path, name, total_time, size=(270, 200)
