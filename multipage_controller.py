@@ -149,14 +149,14 @@ class MultiPageController:
         # Serial + DoorSafety
         # ----------------------------
         # Oven controller serial
-        self.oven_ctrl_serial = SerialService(tk_root=root, port_hint="Curiosity Arduino")
+        self.oven_ctrl_serial = SerialService(tk_root=root, port_hint="1003 9025")
         try:
             self.oven_ctrl_serial.start()
         except Exception as e:
             print("Serial start failed:", e)
 
         # RFID reader serial
-        self.rfid_serial = SerialService(tk_root=root, port_hint="USB")
+        self.rfid_serial = SerialService(tk_root=root, port_hint="1240")
         try:
             self.rfid_serial.start()
         except Exception as e:

@@ -129,7 +129,7 @@ class SerialService:
         if self.port_hint:
             hints = self.port_hint.lower().split()
             for p in ports:
-                desc = (p.description or "").lower()
+                desc = str(p.vid)
                 if any(hint in desc for hint in hints):
                     return p.device
    
