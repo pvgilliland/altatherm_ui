@@ -8,12 +8,12 @@
   "alarm_level": 1500,
   "alarm_hysteresis": 200,
   "over_temp_power": 0.75,
-  "use_sound": true,
+  "use_sound": false,
   "oven_testing_power": 80,
   "manual_cook": {
     "minute": 0,
     "second": 5,
-    "power": 100
+    "power": 1
   },
   "enable_array_temp_control": false,
   "use_rfid": true,

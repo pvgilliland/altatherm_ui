@@ -6,11 +6,11 @@
       "index": 0,
       "steps": [
         {
-          "power": 3,
-          "duration": 62.0
+          "power": 100,
+          "duration": 3435.0
         },
         {
-          "power": 0,
+          "power": 55,
           "duration": 0.0
         },
         {
@@ -178,5 +178,5 @@
       ]
     }
   ],
-  "total_time": "10:18"
+  "total_time": "59:18"
 }
