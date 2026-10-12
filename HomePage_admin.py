@@ -98,7 +98,7 @@ class HomePage_admin(ctk.CTkFrame):
         button_frame.grid_columnconfigure(0, weight=1)
 
         # ----------------------------
-        # Shared button sizing (IDENTICAL for all 6)
+        # Shared button sizing (six primary buttons)
         # ----------------------------
         btn_w = csx(300, 300)
         btn_h = csy(240, 240)
@@ -182,8 +182,20 @@ class HomePage_admin(ctk.CTkFrame):
         self.update_button = ctk.CTkButton(
             bottom_row, text="Update", command=self.on_update, **btn_kwargs
         )
+        self.ioc_button = ctk.CTkButton(
+            bottom_row, text="IOC", command=self.on_ioc, **btn_kwargs
+        )
+
+        # Smaller Exit Admin button underneath IOC, as in the reference image.
         self.exit_admin_button = ctk.CTkButton(
-            bottom_row, text="Exit Admin", command=self.on_exit_admin, **btn_kwargs
+            bottom_row,
+            text="Exit Admin",
+            command=self.on_exit_admin,
+            **{
+                **btn_kwargs,
+                "height": csy(52, 52),
+                "corner_radius": cs(8, 8),
+            },
         )
 
         bottom_gap = csx(55, 75)
@@ -198,8 +210,16 @@ class HomePage_admin(ctk.CTkFrame):
             pady=pad_y,
             sticky="n",
         )
-        self.exit_admin_button.grid(
+        self.ioc_button.grid(
             row=0, column=5, padx=(bottom_gap // 2, pad_x), pady=pad_y, sticky="n"
+        )
+        # Match IOC's column and width, with a narrow vertical separation.
+        self.exit_admin_button.grid(
+            row=1,
+            column=5,
+            padx=(bottom_gap // 2, pad_x),
+            pady=(0, 0),
+            sticky="n",
         )
 
         # ----------------------------
@@ -268,6 +288,15 @@ class HomePage_admin(ctk.CTkFrame):
             self.controller.show_update_method_dialog()
         else:
             print("[HomePage_admin] show_UpdatePage() is not implemented in controller")
+
+    def on_ioc(self) -> None:
+        play_click()
+        # The supplied controller API does not identify an IOC page method.
+        # Connect this button when the IOC page has been implemented.
+        if hasattr(self.controller, "show_IOCPage"):
+            self.controller.show_IOCPage()
+        else:
+            print("[HomePage_admin] show_IOCPage() is not implemented in controller")
 
     def on_exit_admin(self) -> None:
         play_click()

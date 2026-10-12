@@ -45,6 +45,7 @@ from HomePage_admin import HomePage_admin
 from CircularProgressPage_admin import CircularProgressPage_admin
 from FoodReadyPage_admin import FoodReadyPage_admin
 from SequenceProgramPage import SequenceProgramPage
+from IOCPage import IOCPage
 from PhaseTimePowerPage import PhaseTimePowerPage
 
 # Optional admin pages (may not exist in ProjectB yet)
@@ -327,6 +328,7 @@ class MultiPageController:
             "DiagnosticsPage",
             "DiagnosticsPage2",
             "SequenceProgramPage",
+            "IOCPage",
             "PhaseTimePowerPage",
         ):
             return PageClass(self._admin_master_proxy, self.shared_data)
@@ -428,6 +430,10 @@ class MultiPageController:
                 self.admin_container, self, "Sequence Program (TODO)"
             )
         self._register_admin_page(SequenceProgramPage, frame)
+
+        # IOC Cure Station: raise any construction error instead of silently showing a placeholder.
+        frame = self._safe_admin_construct(IOCPage)
+        self._register_admin_page(IOCPage, frame)
 
         # Phase Time/Power Editor (class-keyed)
         try:
@@ -750,6 +756,12 @@ class MultiPageController:
 
         self.after(2000, _show)
 
+    def show_IOCPage(self) -> None:
+        if not self.is_admin:
+            return
+        self.shared_data["phase_return_page"] = "IOC"
+        self._show_admin_page(IOCPage)
+
     def show_SequenceProgramPage(self, program_number: int) -> None:
         if not self.is_admin:
             print(
@@ -762,6 +774,7 @@ class MultiPageController:
             print("[MultiPageController] SequenceProgramPage not constructed")
             return
 
+        self.shared_data["phase_return_page"] = "SequenceProgramPage"
         self._show_admin_page(SequenceProgramPage)
 
         # Call on_show(programNumber) if present
@@ -777,7 +790,10 @@ class MultiPageController:
     def back_to_SequenceProgramPage(self) -> None:
         if not self.is_admin:
             return
-        self._show_admin_page(SequenceProgramPage)
+        if self.shared_data.get("phase_return_page") == "IOC":
+            self._show_admin_page(IOCPage)
+        else:
+            self._show_admin_page(SequenceProgramPage)
 
     def show_PhaseTimePowerPage(self, title: str = "") -> None:
         if not self.is_admin:
