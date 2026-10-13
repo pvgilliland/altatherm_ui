@@ -5,6 +5,7 @@ Run/Save, duplication, and phase editing. Hardware pulse wiring is deliberately
 not invented: provide controller.set_ioc_pulse_enabled(bool) when supported.
 """
 import logging
+import queue
 import tkinter as tk
 import customtkinter as ctk
 
@@ -149,6 +150,15 @@ class IOCPage(SequenceProgramPage):
         self.zone_outline.grid_propagate(False)
         ctk.CTkLabel(diagram, text="ZONE 6", height=21, font=zone_font, text_color=foreground).grid(row=5, column=1)
 
+        # Received lines can originate on a serial worker thread; drain on Tk's
+        # event loop rather than touching StringVars/widgets from that worker.
+        self.oven_ctrl_serial = getattr(self.controller, "oven_ctrl_serial", None)
+        self._serial_lines = queue.Queue(maxsize=100)
+        self._serial_listening = False
+        self._serial_poll_job = None
+        self._serial_ui_job = None
+        self._ioc_visible = False
+
         # Radio buttons reflect their IntVar; no manual color refresh needed.
 
     def _set_pulse(self, enabled: bool):
@@ -182,17 +192,97 @@ class IOCPage(SequenceProgramPage):
         self.thermistor_1_var.set(f"T1={t1}")
         self.thermistor_2_var.set(f"T2={t2}")
 
+    def _on_serial_line(self, line: str) -> None:
+        """SerialService callback; do not access Tk widgets from this callback."""
+        if not self._ioc_visible:
+            return
+        line = str(line).strip()
+        if not (line.startswith("R=") or line.startswith("F=")):
+            return
+        try:
+            self._serial_lines.put_nowait(line)
+        except queue.Full:
+            log.warning("IOC serial receive queue full; dropping response: %s", line)
+
+    def _process_serial_lines(self):
+        """Handle queued serial responses on the Tk main thread."""
+        self._serial_ui_job = None
+        if not self._ioc_visible:
+            return
+        for _ in range(100):
+            try:
+                line = self._serial_lines.get_nowait()
+            except queue.Empty:
+                break
+            if line.startswith("R="):
+                readings = [part.strip() for part in line[2:].split(",")]
+                if len(readings) >= 2 and readings[0] and readings[1]:
+                    self.update_thermistors(readings[0], readings[1])
+                else:
+                    log.warning("Unexpected IOC thermistor response: %s", line)
+            elif line.startswith("F="):
+                status = line[2:].strip()
+                if status in ("0", "1"):
+                    self.fan_enabled = status == "1"
+                    self.fan_choice.set(int(self.fan_enabled))
+        self._serial_ui_job = self.after(100, self._process_serial_lines)
+
+    def _poll_thermistors(self):
+        """Request updated readings once a second while IOC is visible."""
+        self._serial_poll_job = None
+        if not self._ioc_visible:
+            return
+        try:
+            self.controller.serial_get_thermistor()  # sends "R"
+        except Exception:
+            log.exception("IOC thermistor request failed")
+        self._serial_poll_job = self.after(1000, self._poll_thermistors)
+
     def on_show(self, programNumber=None):
         if programNumber is None:
             programNumber = self.shared_data.get("ioc_program_number", 1)
         self.shared_data["ioc_program_number"] = int(programNumber)
         super().on_show(int(programNumber))
-        # Query only: the controller's serial response handler must call
-        # update_thermistors with the parsed measurements.
+
+        if self._ioc_visible:
+            return  # do not register duplicate listeners / timers
+        self._ioc_visible = True
+        if self.oven_ctrl_serial is not None:
+            try:
+                self.oven_ctrl_serial.add_listener(self._on_serial_line)
+                self._serial_listening = True
+            except Exception:
+                log.exception("IOC failed to attach oven serial listener")
+        self._process_serial_lines()
+        # Read actual fan state rather than assuming it is OFF.
         try:
-            self.controller.serial_get_thermistor()
+            self.controller.serial_get_fan()  # sends "F"
         except Exception:
-            log.debug("Thermistor request unavailable", exc_info=True)
+            log.exception("IOC fan status request failed")
+        self._poll_thermistors()
+
+    def on_hide(self):
+        """Stop polling and detach the listener when navigating away."""
+        self._ioc_visible = False
+        for job_name in ("_serial_poll_job", "_serial_ui_job"):
+            job = getattr(self, job_name, None)
+            if job is not None:
+                try:
+                    self.after_cancel(job)
+                except (tk.TclError, ValueError):
+                    pass
+                setattr(self, job_name, None)
+        if self._serial_listening and self.oven_ctrl_serial is not None:
+            try:
+                self.oven_ctrl_serial.remove_listener(self._on_serial_line)
+                self._serial_listening = False
+            except Exception:
+                log.exception("IOC failed to detach oven serial listener")
+        while True:
+            try:
+                self._serial_lines.get_nowait()
+            except queue.Empty:
+                break
 
     def _on_row_selected(self, row_1based, col_index_or_none):
         if col_index_or_none is not None:

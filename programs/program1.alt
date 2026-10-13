@@ -7,19 +7,19 @@
       "steps": [
         {
           "power": 100,
-          "duration": 3435.0
+          "duration": 15.0
         },
         {
-          "power": 55,
-          "duration": 0.0
+          "power": 75,
+          "duration": 10.0
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 1,
-          "duration": 123.0
+          "power": 50,
+          "duration": 5.0
         }
       ]
     },
@@ -28,20 +28,20 @@
       "index": 1,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 100,
+          "duration": 15.0
+        },
+        {
+          "power": 50,
+          "duration": 10.0
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 0,
-          "duration": 0.0
-        },
-        {
-          "power": 0,
-          "duration": 0.0
+          "power": 25,
+          "duration": 5.0
         }
       ]
     },
@@ -50,20 +50,20 @@
       "index": 2,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 100,
+          "duration": 15.0
+        },
+        {
+          "power": 50,
+          "duration": 10.0
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 0,
-          "duration": 0.0
-        },
-        {
-          "power": 0,
-          "duration": 0.0
+          "power": 25,
+          "duration": 5.0
         }
       ]
     },
@@ -72,20 +72,20 @@
       "index": 3,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 100,
+          "duration": 15.0
+        },
+        {
+          "power": 50,
+          "duration": 10.0
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 0,
-          "duration": 0.0
-        },
-        {
-          "power": 0,
-          "duration": 0.0
+          "power": 25,
+          "duration": 5.0
         }
       ]
     },
@@ -94,20 +94,20 @@
       "index": 4,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 100,
+          "duration": 15.0
+        },
+        {
+          "power": 50,
+          "duration": 10.0
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 0,
-          "duration": 0.0
-        },
-        {
-          "power": 0,
-          "duration": 0.0
+          "power": 25,
+          "duration": 5.0
         }
       ]
     },
@@ -116,20 +116,20 @@
       "index": 5,
       "steps": [
         {
-          "power": 0,
-          "duration": 0.0
+          "power": 100,
+          "duration": 15.0
+        },
+        {
+          "power": 50,
+          "duration": 10.0
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 0,
-          "duration": 0.0
-        },
-        {
-          "power": 0,
-          "duration": 0.0
+          "power": 25,
+          "duration": 5.0
         }
       ]
     },
@@ -146,12 +146,12 @@
           "duration": 0.0
         },
         {
-          "power": 1,
-          "duration": 617.0
+          "power": 0,
+          "duration": 0.0
         },
         {
           "power": 0,
-          "duration": 1.0
+          "duration": 0.0
         }
       ]
     },
@@ -160,8 +160,8 @@
       "index": 7,
       "steps": [
         {
-          "power": 3,
-          "duration": 121.0
+          "power": 0,
+          "duration": 0.0
         },
         {
           "power": 0,
@@ -178,5 +178,5 @@
       ]
     }
   ],
-  "total_time": "59:18"
+  "total_time": "00:30"
 }
