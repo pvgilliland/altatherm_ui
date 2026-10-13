@@ -69,8 +69,9 @@ class SerialService:
             if not self._ser or not self._ser.is_open:
                 raise RuntimeError("Serial port not open")
 
-            if cmd == "Z08=000":
-                return
+            # debugging code for IOC testing 
+            #if cmd == "Z08=000":
+            #   return
 
 
             # throttle enforcement

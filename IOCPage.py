@@ -207,6 +207,14 @@ class IOCPage(SequenceProgramPage):
             self._update_run_button_state()
             log.warning("IOC Run blocked: pulse disabled")
             return
+        # Tell the shared cook/progress logic that the IOC cooling fans are
+        # manually controlled. Its fan-delay expiry handler must not switch
+        # the fan off for this run.
+        self.shared_data["ioc_keep_fan_on"] = True
+        # Prevent a previous cook's pending delayed fan-off from firing during IOC.
+        cancel_timer = getattr(self.controller, "_cancel_fan_off_timer", None)
+        if callable(cancel_timer):
+            cancel_timer()
         super().on_run()
 
     def _set_fan(self, enabled: bool):

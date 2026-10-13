@@ -490,6 +490,10 @@ class SequenceProgramPage(ctk.CTkFrame):
             self.controller.show_HomePage()
 
     def on_run(self):
+        # Ordinary cook programs retain automatic fan-delay shutoff.
+        # IOCPage sets this flag before calling the inherited Run method.
+        if type(self) is SequenceProgramPage:
+            self.shared_data["ioc_keep_fan_on"] = False
         try:
             self.sync_to_model()
 

@@ -836,6 +836,11 @@ class MultiPageController:
     def _schedule_fan_off_after_delay(self):
         self._cancel_fan_off_timer()
 
+        # IOC cooling fans are manually controlled, even after the cook ends.
+        if self.shared_data.get("ioc_keep_fan_on", False):
+            logger.info("IOC cycle: skipping automatic fan-delay shutoff")
+            return
+
         tp = self.shared_data.get("time_page", {})
         minute = int(tp.get("minute").get() if "minute" in tp else 0)
         second = int(tp.get("second").get() if "second" in tp else 0)
@@ -849,6 +854,9 @@ class MultiPageController:
             return
 
         def delayed_fan_off():
+            # An IOC run may have started while this timer was pending.
+            if self.shared_data.get("ioc_keep_fan_on", False):
+                return
             try:
                 self.serial_fan(False)
             except Exception as e:
@@ -946,6 +954,8 @@ class MultiPageController:
             print(f"[MultiPageController] show_CookingFinishedPage failed: {e}")
 
     def start_meal_program(self, meal_index: int) -> float:
+        # Normal meal programs use the configured automatic fan delay.
+        self.shared_data["ioc_keep_fan_on"] = False
         self._suppress_finished_page = False
         if meal_index is None:
             print("[MultiPageController] start_meal_program: meal_index is None")
