@@ -69,6 +69,10 @@ class SerialService:
             if not self._ser or not self._ser.is_open:
                 raise RuntimeError("Serial port not open")
 
+            if cmd == "Z08=000":
+                return
+
+
             # throttle enforcement
             now = time.monotonic()
             elapsed = now - self._last_send_time

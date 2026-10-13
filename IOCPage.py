@@ -159,7 +159,7 @@ class IOCPage(SequenceProgramPage):
         self._serial_ui_job = None
         self._ioc_visible = False
 
-        # Start disabled: IOC Run requires Pulse Action AND a closed door.
+        # Start disabled: IOC Run depends on Pulse Action only.
         self._update_run_button_state()
 
         # Radio buttons reflect their IntVar; no manual color refresh needed.
@@ -182,26 +182,15 @@ class IOCPage(SequenceProgramPage):
         self._update_run_button_state()
 
     def on_door_change(self, is_open: bool):
-        """Preserve SequenceProgramPage door interlock plus IOC pulse interlock."""
-        self._ioc_door_open = bool(is_open)
-        self._update_run_button_state()
+        """Ignore door status on the IOC page; Run depends only on Pulse Action."""
+        pass
 
     def _update_run_button_state(self):
-        """Run is available only when Pulse Action is enabled and door is closed."""
+        """Enable Run when Pulse Action is enabled, regardless of door status."""
         if not hasattr(self, "run_button") or self.run_button is None:
             return
 
-        door_open = getattr(self, "_ioc_door_open", False)
-        pulse_on = getattr(self, "pulse_enabled", False)
-        allowed = pulse_on and not door_open
-
-        if door_open:
-            caption = "Run\n(door open)"
-        elif not pulse_on:
-            caption = "Run\n(pulse disabled)"
-        else:
-            caption = "Run"
-
+        allowed = bool(getattr(self, "pulse_enabled", False))
         self.run_button_font.configure(overstrike=not allowed)
         self.run_button.configure(
             state="normal" if allowed else "disabled",
@@ -209,16 +198,14 @@ class IOCPage(SequenceProgramPage):
                 HMIColors.color_blue if allowed
                 else HMIColors.DISABLED_BORDER_COLOR
             ),
-            text=caption,
+            text="Run" if allowed else "Run\n(pulse disabled)",
         )
 
     def on_run(self):
-        """Guard the command as well as the button against an invalid start."""
-        if not getattr(self, "pulse_enabled", False) or getattr(
-            self, "_ioc_door_open", False
-        ):
+        """Prevent starting an IOC program unless Pulse Action is enabled."""
+        if not getattr(self, "pulse_enabled", False):
             self._update_run_button_state()
-            log.warning("IOC Run blocked: pulse disabled or door open")
+            log.warning("IOC Run blocked: pulse disabled")
             return
         super().on_run()
 
