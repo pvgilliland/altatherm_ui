@@ -8,9 +8,11 @@ import logging
 import queue
 import tkinter as tk
 import customtkinter as ctk
+from pathlib import Path
+from PIL import Image
 
 from SequenceProgramPage import SequenceProgramPage
-from hmi_consts import HMIColors, HMISizePos, LightOnly
+from hmi_consts import ASSETS_DIR, HMIColors, HMISizePos, LightOnly
 
 log = logging.getLogger(__name__)
 
@@ -130,25 +132,31 @@ class IOCPage(SequenceProgramPage):
         self.t1_label.grid(row=4, column=1, sticky="w", pady=(6, 0))
         self.t2_label.grid(row=5, column=1, sticky="w")
 
-        # Six-sided physical station drawing (zones 1-4 on both sides).
-        diagram = ctk.CTkFrame(content, fg_color="transparent")
-        diagram.grid(row=0, column=2, sticky="nsew", padx=(HMISizePos.sx(8), 0))
-        diagram.grid_columnconfigure(0, weight=1)
-        diagram.grid_columnconfigure(2, weight=1)
-        # Stretch the four side-zone bands so ZONE 6 sits just above Program 1.
-        for zone_row in range(1, 5):
-            diagram.grid_rowconfigure(zone_row, weight=1)
-        zone_font = ctk.CTkFont(family="Arial", size=min(15, HMISizePos.s(12)))
-        ctk.CTkLabel(diagram, text="ZONE 5", height=21, font=zone_font, text_color=foreground).grid(row=0, column=1)
-        for r, z in enumerate((4, 3, 2, 1), start=1):
-            ctk.CTkLabel(diagram, text=f"ZONE {z}", height=30, font=zone_font, text_color=foreground).grid(row=r, column=0, padx=6)
-            ctk.CTkLabel(diagram, text=f"ZONE {z}", height=30, font=zone_font, text_color=foreground).grid(row=r, column=2, padx=6)
-        self.zone_outline = ctk.CTkFrame(diagram, width=HMISizePos.sx(95),
-                                         height=200, fg_color="transparent",
-                                         border_width=2, border_color=foreground, corner_radius=0)
-        self.zone_outline.grid(row=1, column=1, rowspan=4, sticky="nsew")
-        self.zone_outline.grid_propagate(False)
-        ctk.CTkLabel(diagram, text="ZONE 6", height=21, font=zone_font, text_color=foreground).grid(row=5, column=1)
+        # Right-aligned station graphic, loaded from the project assets folder.
+        # Keep a reference to CTkImage so Tk does not discard it.
+        zone_image_path = Path(ASSETS_DIR) / "IOC_Zones.png"
+        with Image.open(zone_image_path) as source_image:
+            zone_image = source_image.convert("RGB")
+
+        # Preserve the original image aspect ratio inside the top panel.
+        max_width = HMISizePos.sx(285)
+        max_height = HMISizePos.sy(150)
+        image_scale = min(max_width / zone_image.width,
+                          max_height / zone_image.height)
+        image_size = (max(1, round(zone_image.width * image_scale)),
+                      max(1, round(zone_image.height * image_scale)))
+        self.ioc_zones_image = ctk.CTkImage(
+            light_image=zone_image,
+            dark_image=zone_image,
+            size=image_size,
+        )
+        self.ioc_zones_label = ctk.CTkLabel(
+            content, image=self.ioc_zones_image, text="",
+            fg_color="transparent", width=image_size[0], height=image_size[1],
+        )
+        self.ioc_zones_label.grid(
+            row=0, column=2, sticky="ne", padx=(HMISizePos.sx(8), 0)
+        )
 
         # Received lines can originate on a serial worker thread; drain on Tk's
         # event loop rather than touching StringVars/widgets from that worker.
@@ -198,7 +206,7 @@ class IOCPage(SequenceProgramPage):
                 HMIColors.color_blue if allowed
                 else HMIColors.DISABLED_BORDER_COLOR
             ),
-            text="Run" if allowed else "Run\n(pulse disabled)",
+            text="Run" if allowed else "Run\n(Pulse Disabled)",
         )
 
     def on_run(self):
