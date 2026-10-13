@@ -290,7 +290,14 @@ class IOCPage(SequenceProgramPage):
         if programNumber is None:
             programNumber = self.shared_data.get("ioc_program_number", 1)
         self.shared_data["ioc_program_number"] = int(programNumber)
-        super().on_show(int(programNumber))
+        # Returning from PhaseTimePowerPage must not reload the saved program:
+        # it would overwrite edits that have not yet been saved to disk.
+        skip_refresh = self.shared_data.pop("ioc_skip_program_refresh_once", False)
+        if skip_refresh:
+            self.programNumber = int(programNumber)
+            self.program_label.configure(text=f"Program {programNumber}")
+        else:
+            super().on_show(int(programNumber))
 
         if self._ioc_visible:
             return  # do not register duplicate listeners / timers
@@ -334,6 +341,8 @@ class IOCPage(SequenceProgramPage):
 
     def _on_row_selected(self, row_1based, col_index_or_none):
         if col_index_or_none is not None:
+            # Synchronize the current IOC widget values before phase editing.
+            self.sync_to_model()
             self.shared_data["phase_return_page"] = "IOC"
         super()._on_row_selected(row_1based, col_index_or_none)
 

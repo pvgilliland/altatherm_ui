@@ -83,7 +83,7 @@ class PhaseTimePowerPage(ctk.CTkFrame):
             self,
             text="Cancel",
             font=font,
-            command=lambda: self.controller.back_to_SequenceProgramPage(),
+            command=self._return_to_sequence_page,
             fg_color=HMIColors.color_fg,
             text_color=HMIColors.color_blue,
             corner_radius=20,
@@ -140,6 +140,26 @@ class PhaseTimePowerPage(ctk.CTkFrame):
         self.power_control.configure(width=geo["right_w"] - 14, height=geo["inner_h"])
         self.power_control.place(x=7, y=geo["inner_top"])
 
+    def _selected_sequence_page(self):
+        """Resolve the editor that opened this phase, not always SequenceProgramPage."""
+        if self.shared_data.get("phase_return_page") == "IOC":
+            from IOCPage import IOCPage
+            page_class = IOCPage
+        else:
+            from SequenceProgramPage import SequenceProgramPage
+            page_class = SequenceProgramPage
+
+        pages = getattr(self.controller, "pages", None)
+        if pages is None:
+            pages = getattr(self.controller, "admin_pages", {})
+        return pages.get(page_class)
+
+    def _return_to_sequence_page(self):
+        """Preserve unsaved IOC edits while navigating back to its widget."""
+        if self.shared_data.get("phase_return_page") == "IOC":
+            self.shared_data["ioc_skip_program_refresh_once"] = True
+        self.controller.back_to_SequenceProgramPage()
+
     def on_accept(self):
         minute = int(self.shared_data["minute"].get())
         second = int(self.shared_data["second"].get())
@@ -148,20 +168,20 @@ class PhaseTimePowerPage(ctk.CTkFrame):
         row = self.shared_data.get("selected_row")
         col = self.shared_data.get("selected_col")
         if not isinstance(row, int) or not isinstance(col, int):
-            self.controller.back_to_SequenceProgramPage()
+            self._return_to_sequence_page()
             return
 
-        try:
-            from SequenceProgramPage import SequenceProgramPage
+        seq_page = self._selected_sequence_page()
+        if seq_page is None:
+            raise RuntimeError("Selected sequence editor is not registered")
 
-            seq_page = self.controller.pages.get(SequenceProgramPage)
-            if seq_page:
-                step_widget = seq_page.step_widgets[row - 1]
-                btn = step_widget.dual_buttons[col]
-                btn.set_values(power, minute, second)
-                self.shared_data["skip_program_refresh_once"] = True
-        finally:
-            self.controller.back_to_SequenceProgramPage()
+        btn = seq_page.step_widgets[row - 1].dual_buttons[col]
+        btn.set_values(power, minute, second)
+
+        # Keep SequenceCollection consistent with the displayed buttons.
+        seq_page.sync_to_model()
+        self.shared_data["skip_program_refresh_once"] = True
+        self._return_to_sequence_page()
 
     def set_title(self, title):
         self.load_from_selection()
@@ -173,24 +193,16 @@ class PhaseTimePowerPage(ctk.CTkFrame):
         col = self.shared_data.get("selected_col")
         if not isinstance(row, int) or not isinstance(col, int):
             return
-        from SequenceProgramPage import SequenceProgramPage
 
-        seq_page = self.controller.pages.get(SequenceProgramPage)
-        if not seq_page:
+        seq_page = self._selected_sequence_page()
+        if seq_page is None:
             return
+
         try:
             btn = seq_page.step_widgets[row - 1].dual_buttons[col]
-        except Exception:
+        except (IndexError, AttributeError):
             return
 
-        try:
-            power = int(btn.power)
-            minute = int(btn.min)
-            second = int(btn.sec)
-        except Exception:
-            power = int(btn.left_label.cget("text"))
-            minute, second = map(int, btn.right_label.cget("text").split(":"))
-
-        self.shared_data["power"].set(power)
-        self.shared_data["minute"].set(minute)
-        self.shared_data["second"].set(second)
+        self.shared_data["power"].set(int(btn.power))
+        self.shared_data["minute"].set(int(btn.min))
+        self.shared_data["second"].set(int(btn.sec))
