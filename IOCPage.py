@@ -159,6 +159,9 @@ class IOCPage(SequenceProgramPage):
         self._serial_ui_job = None
         self._ioc_visible = False
 
+        # Start disabled: IOC Run requires Pulse Action AND a closed door.
+        self._update_run_button_state()
+
         # Radio buttons reflect their IntVar; no manual color refresh needed.
 
     def _set_pulse(self, enabled: bool):
@@ -176,6 +179,48 @@ class IOCPage(SequenceProgramPage):
             log.info("IOC pulse selection changed; hardware pulse command not configured")
         self.pulse_enabled = enabled
         self.pulse_choice.set(int(enabled))
+        self._update_run_button_state()
+
+    def on_door_change(self, is_open: bool):
+        """Preserve SequenceProgramPage door interlock plus IOC pulse interlock."""
+        self._ioc_door_open = bool(is_open)
+        self._update_run_button_state()
+
+    def _update_run_button_state(self):
+        """Run is available only when Pulse Action is enabled and door is closed."""
+        if not hasattr(self, "run_button") or self.run_button is None:
+            return
+
+        door_open = getattr(self, "_ioc_door_open", False)
+        pulse_on = getattr(self, "pulse_enabled", False)
+        allowed = pulse_on and not door_open
+
+        if door_open:
+            caption = "Run\n(door open)"
+        elif not pulse_on:
+            caption = "Run\n(pulse disabled)"
+        else:
+            caption = "Run"
+
+        self.run_button_font.configure(overstrike=not allowed)
+        self.run_button.configure(
+            state="normal" if allowed else "disabled",
+            border_color=(
+                HMIColors.color_blue if allowed
+                else HMIColors.DISABLED_BORDER_COLOR
+            ),
+            text=caption,
+        )
+
+    def on_run(self):
+        """Guard the command as well as the button against an invalid start."""
+        if not getattr(self, "pulse_enabled", False) or getattr(
+            self, "_ioc_door_open", False
+        ):
+            self._update_run_button_state()
+            log.warning("IOC Run blocked: pulse disabled or door open")
+            return
+        super().on_run()
 
     def _set_fan(self, enabled: bool):
         try:
