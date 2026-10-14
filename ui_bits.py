@@ -152,6 +152,8 @@ class StyledNumericInput(ctk.CTkFrame):
         variable=None,
         min_val=0,
         max_val=100,
+        step=1,
+        decimal_places=0,
         repeat_delay=400,
         repeat_interval=100,
         **kwargs,
@@ -170,6 +172,15 @@ class StyledNumericInput(ctk.CTkFrame):
         self.variable = variable or ctk.IntVar(value=0)
         self.min_val = min_val
         self.max_val = max_val
+        self.step = float(step)
+        self.decimal_places = int(decimal_places)
+        # Only create a formatted display variable when decimal formatting is requested.
+        # Otherwise preserve the original textvariable and visual behavior.
+        self._value_display = None
+        if self.decimal_places:
+            self._value_display = ctk.StringVar()
+            self.variable.trace_add("write", self._update_display)
+            self._update_display()
         self._repeat_delay = int(repeat_delay)
         self._repeat_interval = int(repeat_interval)
 
@@ -183,7 +194,7 @@ class StyledNumericInput(ctk.CTkFrame):
 
         self.value_label = ctk.CTkLabel(
             self.num_frame,
-            textvariable=self.variable,
+            textvariable=self._value_display if self._value_display is not None else self.variable,
             font=("Arial", 64, "bold"),
             width=120,
             text_color=COLOR_NUMBERS,
@@ -251,15 +262,25 @@ class StyledNumericInput(ctk.CTkFrame):
         # Header label: scale by resolution (not box height) for consistency
         self.level_label.configure(font=("Arial", HMISizePos.s(16), "normal"))
 
+    def _update_display(self, *_):
+        if self._value_display is not None:
+            self._value_display.set(f"{float(self.variable.get()):.{self.decimal_places}f}")
+
+    def _change_value(self, direction):
+        # Round by whole step counts to avoid accumulating float errors.
+        value = float(self.variable.get()) + direction * self.step
+        value = min(float(self.max_val), max(float(self.min_val), value))
+        if self.decimal_places:
+            value = round(value, self.decimal_places)
+        else:
+            value = int(value)
+        self.variable.set(value)
+
     def increase(self):
-        v = self.variable.get()
-        if v < self.max_val:
-            self.variable.set(v + 1)
+        self._change_value(1)
 
     def decrease(self):
-        v = self.variable.get()
-        if v > self.min_val:
-            self.variable.set(v - 1)
+        self._change_value(-1)
 
 
 # ---- Layout helper for two-card pages (Time left, Power right) ----

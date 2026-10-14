@@ -3,6 +3,8 @@ from hmi_consts import HMIColors, HMISizePos
 from ui_bits import COLOR_FG, COLOR_BLUE, StyledNumericInput, compute_two_card_layout
 
 
+
+
 class PhaseTimePowerPage(ctk.CTkFrame):
     """Responsive Phase/Time/Power editor reusing shared widgets and layout."""
 
@@ -22,7 +24,11 @@ class PhaseTimePowerPage(ctk.CTkFrame):
         self.title_label.place(relx=0.5, rely=0.025, anchor="n")
 
         minute_var = self.shared_data.get("minute") or ctk.IntVar(value=1)
-        second_var = self.shared_data.get("second") or ctk.IntVar(value=1)
+        # DoubleVar is required for the IOC's half-second resolution.
+        existing_second = self.shared_data.get("second")
+        second_var = (existing_second if isinstance(existing_second, ctk.DoubleVar)
+                      else ctk.DoubleVar(value=float(existing_second.get())
+                                         if existing_second is not None else 1.0))
         power_var = self.shared_data.get("power") or ctk.IntVar(value=1)
         (
             self.shared_data["minute"],
@@ -71,9 +77,8 @@ class PhaseTimePowerPage(ctk.CTkFrame):
         self.minute_control = StyledNumericInput(
             self.time_card, label="Minute", variable=minute_var
         )
-        self.second_control = StyledNumericInput(
-            self.time_card, label="Second", variable=second_var
-        )
+        self.second_control = None
+        self._set_second_control_mode()
         self.power_control = StyledNumericInput(
             self.power_card, label="Level", variable=power_var
         )
@@ -110,6 +115,28 @@ class PhaseTimePowerPage(ctk.CTkFrame):
             height=HMISizePos.BTN_HEIGHT,
         )
         self.accept_button.place(relx=1.0, rely=1.0, x=-27, y=-30, anchor="se")
+
+    def _set_second_control_mode(self):
+        """Use fractional seconds only for phases opened from IOCPage."""
+        ioc_mode = self.shared_data.get("phase_return_page") == "IOC"
+        if getattr(self, "_second_ioc_mode", None) == ioc_mode and self.second_control is not None:
+            return
+        if self.second_control is not None:
+            self.second_control.destroy()
+        current_second = float(self.shared_data["second"].get())
+        self.shared_data["second"] = (ctk.DoubleVar(value=current_second) if ioc_mode
+                                       else ctk.IntVar(value=int(current_second)))
+        # Identical StyledNumericInput for both pages; only step/format differs.
+        self.second_control = StyledNumericInput(
+            self.time_card,
+            label="Second",
+            variable=self.shared_data["second"],
+            min_val=0,
+            max_val=59.5 if ioc_mode else 59,
+            step=0.5 if ioc_mode else 1,
+            decimal_places=1 if ioc_mode else 0,
+        )
+        self._second_ioc_mode = ioc_mode
 
     def _relayout(self, _e=None):
         self.update_idletasks()
@@ -162,7 +189,9 @@ class PhaseTimePowerPage(ctk.CTkFrame):
 
     def on_accept(self):
         minute = int(self.shared_data["minute"].get())
-        second = int(self.shared_data["second"].get())
+        second = (float(self.shared_data["second"].get())
+                  if self.shared_data.get("phase_return_page") == "IOC"
+                  else int(self.shared_data["second"].get()))
         power = int(self.shared_data["power"].get())
 
         row = self.shared_data.get("selected_row")
@@ -184,9 +213,12 @@ class PhaseTimePowerPage(ctk.CTkFrame):
         self._return_to_sequence_page()
 
     def set_title(self, title):
-        self.load_from_selection()
         self.title = title
         self.title_label.configure(text=title)
+        self._set_second_control_mode()
+        self.load_from_selection()
+        # Let the normal window Configure event handle the positioning.
+        self.after_idle(self._relayout)
 
     def load_from_selection(self):
         row = self.shared_data.get("selected_row")
@@ -205,4 +237,9 @@ class PhaseTimePowerPage(ctk.CTkFrame):
 
         self.shared_data["power"].set(int(btn.power))
         self.shared_data["minute"].set(int(btn.min))
-        self.shared_data["second"].set(int(btn.sec))
+        # Load the same numeric type used by the active editor mode.
+        # Otherwise an IntVar displays an initial "5.0" until +/- is pressed.
+        if self.shared_data.get("phase_return_page") == "IOC":
+            self.shared_data["second"].set(float(btn.sec))
+        else:
+            self.shared_data["second"].set(int(float(btn.sec)))

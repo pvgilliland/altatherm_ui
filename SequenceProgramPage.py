@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 # ---------- Helpers ----------
 def _sec_to_mmss(seconds: float) -> tuple[int, int]:
-    seconds = int(round(seconds))
-    return seconds // 60, seconds % 60
+    minutes = int(seconds // 60)
+    return minutes, round(float(seconds) - 60 * minutes, 1)
 
 
-def _mmss_to_sec(m: int, s: int) -> float:
+def _mmss_to_sec(m: int, s: float) -> float:
     return float(m * 60 + s)
 
 
@@ -29,7 +29,7 @@ def _mmss_to_sec(m: int, s: int) -> float:
 class DualTextButton(ctk.CTkFrame):
     """Composite control showing power (left) and time (right). Forced-light colors."""
 
-    def __init__(self, master, power, min, sec, height, command=None, **kwargs):
+    def __init__(self, master, power, min, sec, height, command=None, show_fractional_seconds=False, **kwargs):
         super().__init__(
             master,
             border_width=2,
@@ -38,6 +38,7 @@ class DualTextButton(ctk.CTkFrame):
             **kwargs,
         )
         self.command = command
+        self.show_fractional_seconds = show_fractional_seconds
         self.power, self.min, self.sec = power, min, sec
         self.pack_propagate(False)
         self.configure(height=height)
@@ -59,7 +60,7 @@ class DualTextButton(ctk.CTkFrame):
 
         self.right_label = ctk.CTkLabel(
             self,
-            text=f"{self.min:02}:{self.sec:02}",
+            text=self._format_time(self.min, self.sec),
             anchor="e",
             font=font,
             text_color=LightOnly.PILL_TEXT,
@@ -77,10 +78,16 @@ class DualTextButton(ctk.CTkFrame):
         if self.command:
             self.command()
 
-    def set_values(self, power: int, minute: int, second: int):
+    def _format_time(self, minute: int, second: float) -> str:
+        # IOC displays half-seconds; the ordinary sequence editor uses whole seconds.
+        if self.show_fractional_seconds:
+            return f"{int(minute):02}:{float(second):04.1f}"
+        return f"{int(minute):02}:{int(float(second)):02}"
+
+    def set_values(self, power: int, minute: int, second: float):
         self.power, self.min, self.sec = power, minute, second
         self.left_label.configure(text=f"{power:03}")
-        self.right_label.configure(text=f"{minute:02}:{second:02}")
+        self.right_label.configure(text=self._format_time(minute, second))
 
 
 class StepRowWidget(ctk.CTkFrame):
@@ -101,6 +108,7 @@ class StepRowWidget(ctk.CTkFrame):
         row_height=0,
         pill_height=0,
         base_color=None,
+        show_fractional_seconds=False,
         **kwargs,
     ):
         self.base_color = base_color or LightOnly.ROW_ODD
@@ -173,6 +181,7 @@ class StepRowWidget(ctk.CTkFrame):
                 height=pill_height,
                 corner_radius=HMISizePos.s(16),
                 command=partial(self.button_clicked, self.index, i),
+                show_fractional_seconds=show_fractional_seconds,
             )
             btn.grid(
                 row=0,
@@ -287,6 +296,7 @@ class SequenceProgramPage(ctk.CTkFrame):
                 row_height=self.DESIRED_ROW_H,
                 pill_height=self.DESIRED_PILL_H,
                 base_color=ROW_BASE_COLOR,
+                show_fractional_seconds=(type(self) is not SequenceProgramPage),
             )
             row.grid(row=i, column=0, sticky="we", padx=(0, HMISizePos.sx(6)))
             self.step_widgets.append(row)
@@ -585,7 +595,8 @@ class SequenceProgramPage(ctk.CTkFrame):
             for j, btn in enumerate(row.dual_buttons):
                 step = zone.steps[j]
                 m, s = _sec_to_mmss(step.duration)
-                btn.set_values(int(step.power), int(m), int(s))
+                display_seconds = s if type(self) is not SequenceProgramPage else int(s)
+                btn.set_values(int(step.power), int(m), display_seconds)
 
     def sync_to_model(self):
         sc = SequenceCollection.Instance()
@@ -596,7 +607,7 @@ class SequenceProgramPage(ctk.CTkFrame):
             for j, btn in enumerate(row.dual_buttons):
                 step = zone.steps[j]
                 step.power = int(btn.power)
-                step.duration = _mmss_to_sec(int(btn.min), int(btn.sec))
+                step.duration = _mmss_to_sec(int(btn.min), float(btn.sec))
 
     def on_show(self, programNumber: int):
         self.programNumber = programNumber

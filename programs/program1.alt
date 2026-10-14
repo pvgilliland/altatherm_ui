@@ -7,19 +7,19 @@
       "steps": [
         {
           "power": 100,
-          "duration": 15.0
-        },
-        {
-          "power": 75,
-          "duration": 10.0
+          "duration": 5.5
         },
         {
           "power": 0,
           "duration": 0.0
         },
         {
-          "power": 25,
-          "duration": 5.0
+          "power": 0,
+          "duration": 0.0
+        },
+        {
+          "power": 0,
+          "duration": 0.0
         }
       ]
     },

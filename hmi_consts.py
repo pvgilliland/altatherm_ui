@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-__version__ = "4.0.51"
+__version__ = "4.0.52"
 
 
 # app_root(), a very common helper when you’re building Python applications
