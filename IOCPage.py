@@ -183,11 +183,23 @@ class IOCPage(SequenceProgramPage):
                 log.exception("Could not set IOC pulse")
                 self.pulse_choice.set(int(self.pulse_enabled))
                 return
-        else:
-            log.info("IOC pulse selection changed; hardware pulse command not configured")
         self.pulse_enabled = enabled
         self.pulse_choice.set(int(enabled))
         self._update_run_button_state()
+        self._send_pulse_action_command()
+
+    def _send_pulse_action_command(self):
+        """Send the command corresponding to the current Pulse Action setting."""
+        command = "Z08=000" if self.pulse_enabled else "Z00=000"
+        if self.oven_ctrl_serial is None:
+            log.warning("IOC cannot send %s: oven serial service unavailable", command)
+            return
+        try:
+            self.oven_ctrl_serial.send(command)
+            log.info("IOC Pulse Action %s: sent %s",
+                     "enabled" if self.pulse_enabled else "disabled", command)
+        except Exception:
+            log.exception("IOC failed to send %s", command)
 
     def on_door_change(self, is_open: bool):
         """Ignore door status on the IOC page; Run depends only on Pulse Action."""
@@ -298,6 +310,9 @@ class IOCPage(SequenceProgramPage):
             self.program_label.configure(text=f"Program {programNumber}")
         else:
             super().on_show(int(programNumber))
+
+        # Apply the current Pulse Action setting whenever IOC is shown.
+        self._send_pulse_action_command()
 
         if self._ioc_visible:
             return  # do not register duplicate listeners / timers
