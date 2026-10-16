@@ -730,6 +730,12 @@ class MultiPageController:
             print("[MultiPageController] CircularProgressPage_admin not constructed")
             return
 
+        # Capture the origin for this cook, not a stale phase-editor return flag.
+        # Reset on every cook so normal/manual cooks keep their existing routes.
+        page._return_to_ioc = (
+            self._admin_current is self.admin_pages.get(IOCPage)
+        )
+
         # IMPORTANT: tell the page the manual mode + power BEFORE starting
         try:
             if hasattr(page, "on_show"):

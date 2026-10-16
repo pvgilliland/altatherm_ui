@@ -173,6 +173,7 @@ class CookingSequenceManager:
         self._pending = 0
         self._on_all_complete = None
         self._completed_once = False
+        self._completion_thread = None
 
         # global scale for all zones (0..1)
         self._power_scale = 1.0
@@ -191,7 +192,13 @@ class CookingSequenceManager:
             if last:
                 self._completed_once = True
         if last and self._on_all_complete:
-            threading.Thread(target=self._on_all_complete, daemon=True).start()
+            # Keep a reference so IOC shutdown can wait for the final Z00 command.
+            with self._lock:
+                self._completion_thread = threading.Thread(
+                    target=self._on_all_complete, daemon=True
+                )
+                completion_thread = self._completion_thread
+            completion_thread.start()
 
     def _get_combined_scale_for_runner(self, runner_name: str) -> float:
         global_scale = float(self._power_scale)
@@ -257,12 +264,34 @@ class CookingSequenceManager:
         with self._lock:
             self._pending = len(self.runners)
             self._completed_once = False
+            self._completion_thread = None
         for runner in self.runners.values():
             runner.start()
 
     def stop_all(self):
         for runner in self.runners.values():
             runner.stop()
+
+    def wait_for_shutdown(self, timeout=10.0):
+        """Wait off the Tk thread for every runner and its final callback.
+
+        Returns False on timeout. This does not send hardware commands itself.
+        """
+        deadline = time.monotonic() + timeout
+        for runner in list(self.runners.values()):
+            if runner.ident is not None:
+                runner.join(max(0, deadline - time.monotonic()))
+                if runner.is_alive():
+                    return False
+        # Each runner calls _runner_finished before its thread exits, so any
+        # final callback thread has been recorded by this point.
+        with self._lock:
+            completion_thread = self._completion_thread
+        if completion_thread is not None:
+            completion_thread.join(max(0, deadline - time.monotonic()))
+            if completion_thread.is_alive():
+                return False
+        return True
 
     # --- pause/resume across all zones ---
     def pause_all(self, cut_output: bool = True):

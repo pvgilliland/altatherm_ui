@@ -4,6 +4,7 @@ from typing import Optional
 from TimePowerPage import TimePowerPage  # only for typing; no runtime import
 
 import time
+import threading
 import customtkinter as ctk
 from PIL import Image
 
@@ -47,6 +48,10 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._start_epoch = None
         self._running = False
         self._on_stop = None
+        # Set for each new cook by MultiPageController.show_CircularProgressPage.
+        self._return_to_ioc = False
+        self._ioc_shutdown_pending = False
+        self._ioc_shutdown_result = None
 
         # Cached alarm level (loaded on_show)
         self._alarm_level: int = 1500
@@ -430,6 +435,62 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._start_epoch = time.time()
         self._tick()
 
+    def _navigate_after_cook(self, stopped: bool) -> None:
+        """IOC cooks return to IOC; all other cooks keep their original route."""
+        if self._return_to_ioc:
+            self._begin_ioc_shutdown()
+        elif stopped:
+            self.controller.show_HomePage()
+        else:
+            self.controller.show_FoodReadyPage(
+                auto_return_to=TimePowerPage, after_ms=10000
+            )
+
+    def _begin_ioc_shutdown(self):
+        """Complete every worker shutdown before allowing IOC to re-enable Vadj."""
+        if self._ioc_shutdown_pending:
+            return
+        self._ioc_shutdown_pending = True
+        self._ioc_shutdown_result = None
+        mgr = (self.shared_data or {}).get("sequence_manager")
+        if mgr is not None:
+            mgr.stop_all()
+
+        def wait_for_workers():
+            try:
+                ready = mgr is None or mgr.wait_for_shutdown(timeout=10.0)
+                self._ioc_shutdown_result = bool(ready)
+            except Exception:
+                logger.exception("IOC shutdown worker failed")
+                self._ioc_shutdown_result = False
+
+        threading.Thread(target=wait_for_workers, daemon=True).start()
+        self.after(50, self._poll_ioc_shutdown)
+
+    def _poll_ioc_shutdown(self):
+        """On Tk thread, issue the last shutdown command before showing IOC."""
+        if self._ioc_shutdown_result is None:
+            self.after(50, self._poll_ioc_shutdown)
+            return
+        if not self._ioc_shutdown_result:
+            logger.error("IOC shutdown did not complete; not re-enabling Vadj")
+            self._ioc_shutdown_pending = False
+            return
+
+        # Last power-off command must be queued AFTER all per-zone worker
+        # callbacks and the manager's all-complete callback have finished.
+        try:
+            self.controller.serial_all_zones_off()
+        except Exception:
+            logger.exception("IOC final Z00=000 failed; staying on progress page")
+            self._ioc_shutdown_pending = False
+            return
+
+        self._ioc_shutdown_pending = False
+        self._return_to_ioc = False
+        self.shared_data["ioc_skip_program_refresh_once"] = True
+        self.controller.show_IOCPage()
+
     def stop(self):
         self._running = False
         if self.remaining_time <= 0.001:
@@ -450,9 +511,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                 pass
 
         try:
-            self.controller.show_HomePage()
+            self._navigate_after_cook(stopped=True)
         except Exception as e:
-            print(f"[CircularProgressPage] Failed to navigate HomePage: {e}")
+            print(f"[CircularProgressPage] Failed to navigate after STOP: {e}")
 
     def _stop_manager(self):
         try:
@@ -489,11 +550,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
                     print(f"[CircularProgressPage] on_stop callback failed: {e}")
 
             try:
-                self.controller.show_FoodReadyPage(
-                    auto_return_to=TimePowerPage, after_ms=10000
-                )
+                self._navigate_after_cook(stopped=False)
             except Exception:
-                pass
+                logger.exception("Failed to navigate after countdown completion")
 
     # ===================== Periodic controller poll =========================
 
@@ -712,11 +771,9 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             print(f"[CircularProgressPage] serial_all_zones_off() failed: {e}")
 
         try:
-            self.controller.show_FoodReadyPage(
-                auto_return_to=TimePowerPage, after_ms=10000
-            )
+            self._navigate_after_cook(stopped=False)
         except Exception:
-            pass
+            logger.exception("Failed to navigate after Cookpack completion")
 
     def _evaluate_cookpack_temp_control(self) -> None:
 
