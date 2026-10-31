@@ -517,7 +517,8 @@ class SequenceProgramPage(ctk.CTkFrame):
                 for step in zone.steps:
                     duration = float(step.duration or 0)
                     power = int(step.power or 0)
-                    if duration <= 0 or power <= 0:
+                    # Zero power is a timed wait; only zero-duration steps are unused.
+                    if duration <= 0:
                         continue
                     steps.append((duration, power))
                 zone_name = zone.name or f"Zone{zone_idx+1}"
