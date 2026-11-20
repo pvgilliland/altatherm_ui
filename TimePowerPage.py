@@ -275,10 +275,17 @@ class TimePowerPage(ctk.CTkFrame):
         total_seconds = max(0, minute * 60 + second)
 
         logger.info("Manual Cook Cycle Started")
+        cycle = None
+        if total_seconds:
+            cycle = self.controller.begin_manual_metrics_cycle(
+                "Manual Cook", total_seconds, power
+            )
         # 1) Turn everything on at the requested power right away.
         try:
             self.controller.serial_all_zones(power)
         except Exception as e:
+            if cycle is not None:
+                cycle.finish("failed")
             print(f"[TimePowerPage] serial_all_zones({power}) failed: {e}")
 
         # Seed cache to match the just-sent all-zone command
@@ -292,6 +299,7 @@ class TimePowerPage(ctk.CTkFrame):
             isManualCookMode=True,
             time_power_page=self,
             powerLevel=power,
+            metrics_cycle=cycle,
         )
 
     def set_power_to_percent_of_set_value(self, percent: float):

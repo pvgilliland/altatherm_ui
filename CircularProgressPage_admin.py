@@ -48,6 +48,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
         self._start_epoch = None
         self._running = False
         self._on_stop = None
+        self._metrics_cycle = None
         # Set for each new cook by MultiPageController.show_CircularProgressPage.
         self._return_to_ioc = False
         self._ioc_shutdown_pending = False
@@ -426,10 +427,11 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self._cookpack_top_var.set("")
             self._cookpack_bottom_var.set("")
 
-    def start(self, start_seconds: float, on_stop=None):
+    def start(self, start_seconds: float, on_stop=None, metrics_cycle=None):
         self.total_time = max(0.0, float(start_seconds))
         self.remaining_time = self.total_time
         self._on_stop = on_stop
+        self._metrics_cycle = metrics_cycle
 
         self._running = True
         self._start_epoch = time.time()
@@ -510,6 +512,7 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             except Exception:
                 pass
 
+        self._finish_metrics_cycle("canceled")
         try:
             self._navigate_after_cook(stopped=True)
         except Exception as e:
@@ -542,17 +545,25 @@ class CircularProgressPage_admin(ctk.CTkFrame):
             self.progress.update_progress(0, self.total_time)
             self._stop_manager()
 
+            result = "completed"
             if self._on_stop:
                 cb, self._on_stop = self._on_stop, None
                 try:
                     cb()
                 except Exception as e:
+                    result = "failed"
                     print(f"[CircularProgressPage] on_stop callback failed: {e}")
 
+            self._finish_metrics_cycle(result)
             try:
                 self._navigate_after_cook(stopped=False)
             except Exception:
                 logger.exception("Failed to navigate after countdown completion")
+
+    def _finish_metrics_cycle(self, result):
+        cycle, self._metrics_cycle = self._metrics_cycle, None
+        if cycle is not None:
+            cycle.finish(result)
 
     # ===================== Periodic controller poll =========================
 

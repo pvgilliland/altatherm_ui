@@ -31,6 +31,7 @@ from hmi_consts import (
 )
 from helpers import restore_saved_fan_delay_settings
 from hmi_logger import setup_logging
+from oven_metrics import OvenMetrics
 import oven_state
 
 # program / sequence helpers
@@ -79,7 +80,7 @@ class _AdminMasterProxy:
 
         # Tkinter/CustomTkinter expects these
         self.tk = master_widget.tk
-        self._w = master_widget._w
+        self._w = str(master_widget)
         self.children = master_widget.children
 
     def __getattr__(self, name: str):
@@ -134,6 +135,7 @@ class MultiPageController:
     def __init__(self, root: ctk.CTk):
         self.root = root
         self._suppress_finished_page = False  # flag for hard-cancel
+        self._consumer_cycle = None
 
         # Root grid must expand so overlay fills the window
         self.root.grid_rowconfigure(0, weight=1)
@@ -223,6 +225,7 @@ class MultiPageController:
         self.after(2000, self.serial_get_door_switch)
 
         setup_logging("hmi")
+        self._metrics = OvenMetrics.from_settings()
         logger.info(f"HMI Started {[__version__]}")
 
         # ----------------------------
@@ -344,7 +347,7 @@ class MultiPageController:
         # Case 1: explicit parent/master parameter exists
         if "parent" in names or "master" in names:
             parent_key = "parent" if "parent" in names else "master"
-            kwargs = {parent_key: self.admin_container}
+            kwargs: dict[str, Any] = {parent_key: self.admin_container}
             if "controller" in names:
                 kwargs["controller"] = self
             if "shared_data" in names:
@@ -496,9 +499,10 @@ class MultiPageController:
         self._admin_nav_pending = None
 
         # lifecycle: hide prior
-        if self._admin_current and hasattr(self._admin_current, "on_hide"):
+        on_hide = getattr(self._admin_current, "on_hide", None)
+        if callable(on_hide):
             try:
-                self._admin_current.on_hide()
+                on_hide()
             except Exception:
                 pass
 
@@ -509,13 +513,12 @@ class MultiPageController:
         # Run on_show *after* this click handler returns to the event loop
         def _finish_switch():
             try:
-                if hasattr(frame, "on_show") and (
-                    key is not CircularProgressPage_admin
-                ):
+                on_show = getattr(frame, "on_show", None)
+                if callable(on_show) and key is not CircularProgressPage_admin:
                     try:
-                        frame.on_show()
+                        on_show()
                     except TypeError:
-                        frame.on_show()
+                        on_show()
             except Exception:
                 pass
             finally:
@@ -712,12 +715,13 @@ class MultiPageController:
     # Admin-enabled versions
     def show_CircularProgressPage(
         self,
-        seconds: int,
+        seconds: float,
         on_stop=None,
         isManualCookMode: bool | None = None,
-        time_power_page: Optional[Any] = None,
+        time_power_page: TimePowerPage | None = None,
         powerLevel: int | None = None,
         reheat_mode: bool = False,
+        metrics_cycle=None,
     ) -> None:
         if not self.is_admin:
             print(
@@ -726,7 +730,7 @@ class MultiPageController:
             return
 
         page = self.admin_pages.get(CircularProgressPage_admin)
-        if page is None:
+        if not isinstance(page, CircularProgressPage_admin):
             print("[MultiPageController] CircularProgressPage_admin not constructed")
             return
 
@@ -738,8 +742,7 @@ class MultiPageController:
 
         # IMPORTANT: tell the page the manual mode + power BEFORE starting
         try:
-            if hasattr(page, "on_show"):
-                page.on_show(isManualCookMode, time_power_page, powerLevel)
+            page.on_show(isManualCookMode, time_power_page, powerLevel)
         except Exception as e:
             print(
                 f"[MultiPageController] CircularProgressPage_admin.on_show failed: {e}"
@@ -748,7 +751,7 @@ class MultiPageController:
         self._show_admin_page(CircularProgressPage_admin)
 
         try:
-            page.start(seconds, on_stop=on_stop)
+            page.start(seconds, on_stop=on_stop, metrics_cycle=metrics_cycle)
         except Exception as e:
             print(f"[MultiPageController] CircularProgressPage_admin.start failed: {e}")
 
@@ -785,8 +788,9 @@ class MultiPageController:
 
         # Call on_show(programNumber) if present
         try:
-            if hasattr(page, "on_show"):
-                page.on_show(program_number)
+            on_show = getattr(page, "on_show", None)
+            if callable(on_show):
+                on_show(program_number)
         except Exception as e:
             print(f"[MultiPageController] SequenceProgramPage.on_show failed: {e}")
 
@@ -817,13 +821,16 @@ class MultiPageController:
 
         # Update title + load current selection into the numeric inputs
         try:
-            if hasattr(page, "set_title"):
-                page.set_title(title)
-            elif hasattr(page, "on_show"):
-                try:
-                    page.on_show(title)
-                except TypeError:
-                    page.on_show()
+            set_title = getattr(page, "set_title", None)
+            if callable(set_title):
+                set_title(title)
+            else:
+                on_show = getattr(page, "on_show", None)
+                if callable(on_show):
+                    try:
+                        on_show(title)
+                    except TypeError:
+                        on_show()
         except Exception as e:
             print(f"[MultiPageController] PhaseTimePowerPage title/show failed: {e}")
 
@@ -936,13 +943,30 @@ class MultiPageController:
         self.oven_ctrl_serial.send("P")  # Get Fan current
 
     # ------------------------------------------------------------------
-    # Cooking sequence lifecycle (unchanged from ProjectB)
+    # Cooking sequence lifecycle
     # ------------------------------------------------------------------
-    def _on_all_zones_complete(self):
+    def begin_manual_metrics_cycle(self, recipe_name, duration, power):
+        if self._metrics is not None:
+            return self._metrics.begin(
+                recipe_name,
+                mode="MANUAL",
+                job_settings={"duration_seconds": duration, "power_percent": power},
+            )
+
+    def begin_program_metrics_cycle(self, program_number, zone_sequences):
+        if self._metrics is not None:
+            return self._metrics.begin_program(program_number, zone_sequences)
+
+    def _on_all_zones_complete(self, cycle=None):
+        result = "completed"
         try:
             self.serial_all_zones_off()
         except Exception as e:
+            result = "failed"
             print(f"[MultiPageController] serial_all_zones_off failed: {e}")
+
+        if cycle is not None:
+            cycle.finish(result)
 
         try:
             oven_state.set_running(False)
@@ -1030,8 +1054,6 @@ class MultiPageController:
         if not zone8_flag:
             mgr.add_dac("Zone8", [(0.0, 0)], set_zone_output)
 
-        mgr.set_on_all_complete(self._on_all_zones_complete)
-
         self.sequence_manager = mgr
         self.shared_data["sequence_manager"] = mgr
 
@@ -1046,15 +1068,23 @@ class MultiPageController:
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(True) failed: {e}")
 
+        cycle = self.begin_program_metrics_cycle(program_number, zone_sequences)
+        self._consumer_cycle = cycle
+        mgr.set_on_all_complete(lambda: self._on_all_zones_complete(cycle))
         try:
             mgr.start_all()
         except Exception as e:
+            if cycle is not None:
+                cycle.finish("failed")
             print(f"[MultiPageController] sequence_manager.start_all() failed: {e}")
             return 0.0
 
         return float(total_seconds)
 
     def stop_current_cook(self) -> None:
+        cycle, self._consumer_cycle = self._consumer_cycle, None
+        if cycle is not None:
+            cycle.cancel()
         mgr = self.sequence_manager or self.shared_data.get("sequence_manager")
         if mgr:
             try:
@@ -1073,6 +1103,9 @@ class MultiPageController:
             oven_state.set_running(False)
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(False) failed: {e}")
+
+        if cycle is not None:
+            cycle.finish("canceled")
 
     def pause_current_cook(self, cut_output: bool = True) -> None:
         mgr = self.sequence_manager or self.shared_data.get("sequence_manager")
@@ -1109,12 +1142,19 @@ class MultiPageController:
         except Exception as e:
             print(f"[MultiPageController] oven_state.set_running(True) failed: {e}")
 
+        self._consumer_cycle = self.begin_manual_metrics_cycle("Reheat", secs, power)
         try:
             self.serial_all_zones(power)
         except Exception as e:
+            self.finish_reheat_metrics("failed")
             print(f"[MultiPageController] serial_all_zones({power}) failed: {e}")
 
         return secs
+
+    def finish_reheat_metrics(self, result):
+        cycle, self._consumer_cycle = self._consumer_cycle, None
+        if cycle is not None:
+            cycle.finish(result)
     
     def resume_reheat_cycle(self) -> None:
         """

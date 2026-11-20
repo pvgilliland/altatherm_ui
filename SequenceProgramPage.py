@@ -500,6 +500,7 @@ class SequenceProgramPage(ctk.CTkFrame):
             self.controller.show_HomePage()
 
     def on_run(self):
+        cycle = None
         # Ordinary cook programs retain automatic fan-delay shutoff.
         # IOCPage sets this flag before calling the inherited Run method.
         if type(self) is SequenceProgramPage:
@@ -566,9 +567,12 @@ class SequenceProgramPage(ctk.CTkFrame):
                     print("[Run] stop handler error:", e)
 
             logger.info("Program Cook Cycle Started")
+            cycle = self.controller.begin_program_metrics_cycle(
+                self.programNumber, zone_sequences
+            )
             mgr.start_all()
             self.controller.show_CircularProgressPage(
-                total_seconds, on_stop=on_stop_handler
+                total_seconds, on_stop=on_stop_handler, metrics_cycle=cycle
             )
             print(
                 f"[Run] Program {self.programNumber} started for {len(zone_sequences)} zones; "
@@ -576,6 +580,8 @@ class SequenceProgramPage(ctk.CTkFrame):
             )
 
         except Exception as e:
+            if cycle is not None:
+                cycle.finish("failed")
             print("[Run] Failed to start program:", e)
 
     def on_save(self):

@@ -271,18 +271,24 @@ class CookingPage:
 
         # ----- Reheat-specific oven shutdown (meal_index == 5) -----
         if self.meal_index == 5 and self.controller is not None:
+            result = "completed"
             # Reheat mode: we ran all zones at 80% for a fixed time,
             # so when the timer ends we must explicitly turn them off.
             try:
                 if hasattr(self.controller, "serial_all_zones_off"):
                     self.controller.serial_all_zones_off()
                 else:
+                    result = "failed"
                     print(
                         "[CookingPage] controller has no serial_all_zones_off; "
                         "cannot power down zones for reheat"
                     )
             except Exception as e:
+                result = "failed"
                 print(f"[CookingPage] serial_all_zones_off at reheat end failed: {e}")
+            finish_metrics = getattr(self.controller, "finish_reheat_metrics", None)
+            if finish_metrics is not None:
+                finish_metrics(result)
 
             # Optionally: show "Cooking Finished" page if available
             if hasattr(self.controller, "show_CookingFinishedPage"):

@@ -12,8 +12,8 @@
   "oven_testing_power": 80,
   "manual_cook": {
     "minute": 0,
-    "second": 5,
-    "power": 1
+    "second": 17,
+    "power": 50
   },
   "enable_array_temp_control": false,
   "use_rfid": true,
