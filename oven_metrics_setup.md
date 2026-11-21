@@ -2,10 +2,9 @@
 
 Connect the SIM7600 to the HMI as an IP network interface and bring up its
 cellular data session with the carrier APN. On Linux, find the interface name
-with `ip -br address`. On Windows, run `ipconfig` and find the IPv4 address
-under the SIMCom Mobile Broadband adapter. Update the configured address and
-restart the HMI if that address changes. The HMI uses `curl` to bind HTTPS
-uploads to that interface on Linux or to that source address on Windows.
+with `ip -br address`. On Windows, the uploader finds the IPv4 address of
+the active SIMCom adapter on each retry pass. The HMI uses `curl` to bind
+HTTPS uploads to that interface on Linux or to that source address on Windows.
 
 Set these values near the top of [`oven_metrics.py`](oven_metrics.py),
 then launch or restart the HMI normally.
@@ -14,7 +13,7 @@ then launch or restart the HMI normally.
 | --- | --- |
 | `OVEN_SERIAL` | The serial number registered with the metrics service |
 | `OVEN_API_KEY` | The key provisioned for that oven |
-| `WINDOWS_CELLULAR_IPV4` | The SIM7600's local IPv4 address on Windows |
+| `WINDOWS_CELLULAR_IPV4` | Leave blank for automatic Windows detection. Set a specific IPv4 address only when needed to distinguish multiple adapters. |
 | `LINUX_CELLULAR_INTERFACE` | The SIM7600's Linux interface name, such as `wwan0` or `usb0` |
 
 Keep any copy containing a real oven key local and out of version control.
@@ -42,6 +41,45 @@ image serving `metrics-altathermdhi.cloud` through the existing deployment
 process. Its database user needs SELECT and INSERT on both `oven_jobs` and
 `cooking_cycles`. Check that `/openapi.json` lists `POST /api/oven-jobs`
 before testing an oven.
+
+### Read-only React dashboard
+
+Build the dashboard from the repository root. The build uses
+`/oven-dashboard/` as its public path.
+
+```powershell
+Set-Location dashboard
+npm.cmd ci
+npm.cmd run build
+```
+
+Upload the contents of `dashboard/dist/` to the VPS and install them under
+`/var/www/altatherm-oven-dashboard/`. Add this location to the existing
+HTTPS server block for `metrics-altathermdhi.cloud`, then check and reload
+Nginx with `sudo nginx -t` and `sudo systemctl reload nginx`.
+
+```nginx
+location = /oven-dashboard { return 301 /oven-dashboard/; }
+location /oven-dashboard/ {
+    alias /var/www/altatherm-oven-dashboard/;
+    index index.html;
+}
+```
+
+The app uses the same origin's `GET /api/oven-dashboard/jobs` endpoint.
+Deploy the updated [backend module](server/oven_api.py) in the Docker image
+for the live Compose `backend` service. For the current image-only
+deployment, derive a new tag from `altatherm-backend:v2-oven-jobs` with
+`COPY oven_api.py /app/oven_api.py`, then update the Compose service's
+image tag. Set `OVEN_DASHBOARD_USER` and a strong, unique
+`OVEN_DASHBOARD_PASSWORD` in the VPS `backend.env` file used by that
+service. Use ASCII for both values and omit colons from the username.
+Recreate the service with `sudo docker compose up -d --no-deps --pull never backend`.
+The MySQL account must be able to select from `ovens` and `oven_jobs`.
+
+Open `https://metrics-altathermdhi.cloud/oven-dashboard/`, sign in with
+the dashboard credentials and check that the latest run appears.
+The table shows times in the browser's local timezone.
 
 ## Backend contract
 

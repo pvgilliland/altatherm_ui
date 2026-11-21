@@ -19,8 +19,10 @@ JOBS_URL = "https://metrics-altathermdhi.cloud/api/oven-jobs"
 
 # Set these locally for the oven running this copy of the HMI.
 OVEN_SERIAL = "ALT-TEST-001"
-OVEN_API_KEY = "2112xSHdCrXIvnXcLj1Z7GA_D8CCS2L8IzBgFeLZI98iyXI13580"
-WINDOWS_CELLULAR_IPV4 = "10.172.6.51"
+OVEN_API_KEY = "xSHdCrXIvnXcLj1Z7GA_D8CCS2L8IzBgFeLZI98iyXI"
+WINDOWS_CELLULAR_IPV4 = (
+    ""  # Optional override for Windows. It is now discovered automatically
+)
 LINUX_CELLULAR_INTERFACE = ""
 
 
@@ -34,6 +36,28 @@ def _cellular_curl_options(interface):
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", interface):
         raise ValueError("Expected a cellular network interface name")
     return ["--interface", "if!" + interface]
+
+
+def _windows_cellular_ipv4():
+    command = (
+        "[System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()"
+        " | Where-Object { $_.Description -match 'SIMCom' -and $_.OperationalStatus -eq 'Up' }"
+        " | ForEach-Object { $_.GetIPProperties().UnicastAddresses }"
+        " | Where-Object { $_.Address.AddressFamily -eq 'InterNetwork' }"
+        " | ForEach-Object { $_.Address.IPAddressToString }"
+    )
+    process = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    addresses = set(process.stdout.split())
+    if len(addresses) != 1:
+        raise OSError("Expected one active SIMCom IPv4 address")
+    return addresses.pop()
 
 
 class CookingCycle:
@@ -88,7 +112,8 @@ class OvenMetrics:
             logger.error("Metrics requires an oven serial and key")
             return None
         try:
-            _cellular_curl_options(interface)
+            if interface or os.name != "nt":
+                _cellular_curl_options(interface)
         except ValueError:
             logger.error(
                 "Metrics requires the cellular IPv4 address on Windows or interface name on Linux"
@@ -112,7 +137,7 @@ class OvenMetrics:
             f"X-Oven-Serial: {serial}\nX-Oven-Key: {key}\n"
             "Content-Type: application/json\n"
         )
-        self._interface_options = _cellular_curl_options(interface)
+        self._interface = interface
         self._spool = spool
         self._spool.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._wake = Event()
@@ -151,7 +176,7 @@ class OvenMetrics:
             return
         self._wake.set()
 
-    def _upload(self, pending):
+    def _upload(self, pending, interface_options):
         try:
             payload = json.loads(pending.read_text(encoding="utf-8"))
         except (ValueError, OSError):
@@ -166,7 +191,7 @@ class OvenMetrics:
                 "--silent",
                 "--noproxy",
                 "*",
-                *self._interface_options,
+                *interface_options,
                 "--connect-timeout",
                 "10",
                 "--max-time",
@@ -202,8 +227,14 @@ class OvenMetrics:
         while True:
             self._wake.clear()
             try:
-                for pending in sorted(self._spool.glob("*.json")):
-                    self._upload(pending)
-            except (OSError, subprocess.TimeoutExpired):
-                logger.exception("Could not process the oven metrics queue")
+                pending_records = sorted(self._spool.glob("*.json"))
+                if pending_records:
+                    interface = self._interface
+                    if os.name == "nt" and not interface:
+                        interface = _windows_cellular_ipv4()
+                    options = _cellular_curl_options(interface)
+                    for pending in pending_records:
+                        self._upload(pending, options)
+            except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                logger.warning("Oven jobs remain queued: %s", exc)
             self._wake.wait(60)

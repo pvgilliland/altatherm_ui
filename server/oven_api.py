@@ -9,11 +9,13 @@ from typing import Literal
 from uuid import UUID
 
 import mysql.connector
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from mysql.connector.errorcode import ER_DUP_ENTRY
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api")
+dashboard_auth = HTTPBasic(auto_error=False)
 
 
 # ---------------------------------------------------------
@@ -49,6 +51,21 @@ def require_admin(
             status_code=401,
             detail="Invalid administrator key",
         )
+
+
+def require_dashboard(
+    credentials: HTTPBasicCredentials | None = Depends(dashboard_auth),
+):
+    username = os.environ.get("OVEN_DASHBOARD_USER")
+    password = os.environ.get("OVEN_DASHBOARD_PASSWORD")
+    if not username or not password:
+        raise HTTPException(status_code=503, detail="Dashboard access is not configured")
+    if credentials is not None:
+        user_ok = hmac.compare_digest(credentials.username.encode(), username.encode())
+        password_ok = hmac.compare_digest(credentials.password.encode(), password.encode())
+        if user_ok and password_ok:
+            return
+    raise HTTPException(status_code=401, detail="Invalid dashboard credentials")
 
 
 def require_oven(
@@ -133,6 +150,47 @@ class OvenEvent(BaseModel):
     event_type: Literal["info", "warning", "fault"]
     event_code: str = Field(min_length=1, max_length=50)
     message: str | None = Field(default=None, max_length=255)
+
+
+@router.get("/oven-dashboard/jobs", dependencies=[Depends(require_dashboard)])
+def list_dashboard_jobs(
+    response: Response,
+    before: int | None = Query(default=None, gt=0, le=9223372036854775807),
+):
+    page_size = 50
+    query = (
+        "SELECT j.job_id, o.serial_number, o.model_number, j.mode, "
+        "j.job_file, j.job_settings, j.start_time, j.stop_time "
+        "FROM oven_jobs AS j JOIN ovens AS o ON o.oven_id = j.oven_id "
+    )
+    params = (page_size + 1,)
+    if before is not None:
+        query += "WHERE j.job_id < %s "
+        params = (before, page_size + 1)
+    query += "ORDER BY j.job_id DESC LIMIT %s"
+    try:
+        with db_connect() as db:
+            cursor = db.cursor(dictionary=True)
+            try:
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+            finally:
+                cursor.close()
+    except mysql.connector.Error as exc:
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+
+    jobs = rows[:page_size]
+    for job in jobs:
+        job["job_id"] = str(job["job_id"])
+        job["job_settings"] = json.loads(job["job_settings"])
+        for field in ("start_time", "stop_time"):
+            if job[field] is not None:
+                job[field] = job[field].replace(tzinfo=timezone.utc)
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "jobs": jobs,
+        "next_before": jobs[-1]["job_id"] if len(rows) > page_size else None,
+    }
 
 
 # ---------------------------------------------------------
